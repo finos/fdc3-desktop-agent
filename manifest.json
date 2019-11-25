@@ -1,0 +1,27 @@
+{
+    "name": "FDC3 Agent",
+    "version": "1.0",
+    "description": "Build an Extension!",
+    "manifest_version": 2,
+
+    "background": {
+        "scripts": ["background.js"],
+        "persistent": false
+    },
+    "web_accessible_resources":[
+        "api.js"
+    ],     
+    "browser_action": {
+        "default_icon": "icon.png"
+    },
+
+    "content_scripts": [
+        {
+          "matches": [
+            "<all_urls>"
+          ],
+          "run_at": "document_start",
+          "js": ["content.js"]
+        }
+      ]
+  }
