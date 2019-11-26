@@ -9,7 +9,10 @@ const systemChannels = {};
 let contexts = {default:[]};
 
 //context listeners
-let listeners = [];
+let contextListeners = [];
+
+//intent listeners (dictionary keyed by intent name)
+let intentListeners = {};
 
 fetch("http://localhost:5556/directory.json").then(_r =>{
                 let r = _r.clone();
@@ -18,7 +21,7 @@ fetch("http://localhost:5556/directory.json").then(_r =>{
                 });
 });
 
-
+//to do: handle disconnects, remove listeners (identify listeners)
 chrome.runtime.onConnect.addListener(function(port) {
     console.assert(port.name == "fdc3");
     port.onMessage.addListener(function(msg) {
@@ -37,14 +40,27 @@ chrome.runtime.onConnect.addListener(function(port) {
             }
         }
         else if (msg.method === "addContextListener"){
-            listeners.push(port);
+            contextListeners.push(port);
+        }
+        else if (msg.method === "addIntentListener"){
+            let name = msg.data.intent;
+            if (!intentListeners[name]){
+                intentListeners[name] = []; 
+            }
+            intentListeners[name].push(port);
         }
         else if (msg.method === "broadcast"){
             contexts.default.unshift(msg.data.context);
             //broadcast to listeners
-            listeners.forEach(l => {
+            contextListeners.forEach(l => {
                 l.postMessage({name:"context", data:msg.data});
             });
+        }
+        else if (msg.method === "raiseIntent"){
+             if (intentListeners[msg.data.intent]) {
+                intentListeners[msg.data.intent][0].postMessage({name:"intent", data:msg.data});
+             }
+           
         }
     });
 });

@@ -19,8 +19,16 @@ document.addEventListener('FDC3:broadcast',e => {
     port.postMessage({method:"broadcast", "data": e.detail}); 
 });
 
+document.addEventListener('FDC3:raiseIntent',e => {
+    port.postMessage({method:"raiseIntent", "data": e.detail}); 
+});
+
 document.addEventListener('FDC3:addContextListener',e => {
-    port.postMessage({method:"addContextListener", "data": e.data}); 
+    port.postMessage({method:"addContextListener", "data": e.detail}); 
+});
+
+document.addEventListener('FDC3:addIntentListener',e => {
+    port.postMessage({method:"addIntentListener", "data": e.detail}); 
 });
 
 port.onMessage.addListener(msg => {
@@ -29,8 +37,17 @@ port.onMessage.addListener(msg => {
             detail:{data:msg.data}
         }));
     }
+    else if (msg.name === "intent") {
+        document.dispatchEvent(new CustomEvent("FDC3:intent",{
+            detail:{data:msg.data}
+        })); 
+    }
 
 });
+
+window.fdc3_2 = {
+    foo:"bar"
+};
  //handle intents
 
  //handle context
