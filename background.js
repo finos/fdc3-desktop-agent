@@ -1,6 +1,8 @@
 
 
 let directory = null;
+//connected end points / apps
+let connected = {};
 //memoize dictionary of manifests
 let manifests = {};
 //the standard system channels
@@ -24,6 +26,20 @@ fetch("http://localhost:5556/directory.json").then(_r =>{
 //to do: handle disconnects, remove listeners (identify listeners)
 chrome.runtime.onConnect.addListener(function(port) {
     console.assert(port.name == "fdc3");
+    connected[port.sender.url] = port;
+    port.onDisconnect.addListener(function(){
+        console.log("disconnect",port);
+        let id = port.sender.url;
+        connected[id] = null;
+        //remove context listeners
+        contextListeners = contextListeners.filter(item => {return item.sender.url !== id; });
+        //iterate through the intents and cleanup the listeners...
+        Object.keys(intentListeners).forEach(key => {
+            if (intentListeners[key].length > 0){
+                intentListeners[key]= intentListeners[key].filter(item => {return item.sender.url !== id; });
+            }
+        });
+    });
     port.onMessage.addListener(function(msg) {
         if (msg.method === "open"){
             let result = directory.filter(item => item.name === msg.data.name);
