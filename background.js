@@ -136,7 +136,7 @@ chrome.runtime.onConnect.addListener(function(port) {
             directory.forEach(entry => {
                 if (entry.intents){
                     
-                    if (entry.intents.includes(msg.data.intent)){
+                    if (entry.intents.filter(int => {return int.name === msg.data.intent}).length > 0){
                         //ignore entries already dynamically registered
                         let list = intentListeners[msg.data.intent];
                         if (!list || !(list.find(app => {return app.directoryData.name === entry.name;}))){
