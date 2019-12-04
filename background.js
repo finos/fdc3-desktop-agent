@@ -50,14 +50,14 @@ fetch("http://localhost:3000/directory.json").then(_r =>{
 
 //to do: handle disconnects, remove listeners (identify listeners)
 chrome.runtime.onConnect.addListener(function(port) {
-    connected[port.sender.url] = port;
+    
     let app_url = new URL(port.sender.url);
     //look up in directory...
-    //to do: disambiguate apps with matching hosts
+    //to do: disambiguate apps with matching origins...
     let entry = directory.find(ent => {
         if (ent.start_url){
             let ent_url = new URL(ent.start_url);
-            return app_url.host === ent_url.host;
+            return app_url.origin === ent_url.origin;
         }
         return false;
     });
@@ -77,6 +77,7 @@ chrome.runtime.onConnect.addListener(function(port) {
             port.postMessage({name:"directoryData", data:port.directoryData});
         }
     }
+    connected[port.sender.url] = port;
     port.onDisconnect.addListener(function(){
         console.log("disconnect",port);
         let id = port.sender.url;
@@ -139,7 +140,9 @@ chrome.runtime.onConnect.addListener(function(port) {
                     if (entry.intents.filter(int => {return int.name === msg.data.intent}).length > 0){
                         //ignore entries already dynamically registered
                         let list = intentListeners[msg.data.intent];
-                        if (!list || !(list.find(app => {return app.directoryData.name === entry.name;}))){
+                        if (!list || !(list.find(app => {
+                            return app.directoryData.name === entry.name;
+                        }))){
                             r.push({type:"directory", details:entry});
                         }
                     }
@@ -160,7 +163,9 @@ chrome.runtime.onConnect.addListener(function(port) {
                         fetch(r[0].details.manifest).then(mR => {
                             mR.json().then(mD => {
                                 //find the matching intent entry
-                                let intentData = mD.intents.find(i => {return i.intent === msg.data.intent;});
+                                let intentData = mD.intents.find(i => {
+                                    return i.type === msg.data.context.type && i.intent === msg.data.intent;
+                                });
                                 //set paramters
                                 let ctx = msg.data.context;
                                 let params = {};
@@ -225,31 +230,36 @@ chrome.runtime.onConnect.addListener(function(port) {
             else if (msg.selected.type === "directory"){
                 fetch(msg.selected.details.manifest).then(mR => {
                     mR.json().then(mD => {
-                  
-                        //find the matching intent entry
-                        let intentData = mD.intents.find(i => {return i.intent === msg.intent;});
-                        //set paramters
-                        let ctx = msg.context;
-                        let params = {};
-                        Object.keys(mD.params).forEach(key =>{ 
-                            let param = mD.params[key];
-                            if (ctx.type === param.type){
-                                if (param.key){
-                                    params[key] = ctx[param.key];
+                        let start_url = mD.start_url;
+                        if (mD.intents){
+                            //find the matching intent entry
+                            let intentData = mD.intents.find(i => {
+                                return i.type === msg.context.type && i.intent === msg.intent;
+                                //return i.intent === msg.intent;
+                            });
+                            //set paramters
+                            let ctx = msg.context;
+                            let params = {};
+                            Object.keys(mD.params).forEach(key =>{ 
+                                let param = mD.params[key];
+                                if (ctx.type === param.type){
+                                    if (param.key){
+                                        params[key] = ctx[param.key];
+                                    }
+                                    else if (param.id){
+                                        params[key]  = ctx.id[param.id]; 
+                                    }
                                 }
-                                else if (param.id){
-                                    params[key]  = ctx.id[param.id]; 
-                                }
-                            }
-                        });
-                        //generate the url
-                        let template = mD.templates[intentData.template];
-                        Object.keys(params).forEach(key => {
-                            template = template.replace("${" + key +"}",params[key]);
+                            });
+                            //generate the url
+                            let template = mD.templates[intentData.template];
+                            Object.keys(params).forEach(key => {
+                                template = template.replace("${" + key +"}",params[key]);
 
-                        });
-                       
-                        let start_url = template;
+                            });
+                        
+                            start_url = template;
+                        }
                         let win = window.open(start_url,msg.selected.details.name);
                         win.focus();
                     });

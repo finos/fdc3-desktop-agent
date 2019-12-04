@@ -61,7 +61,9 @@ port.onMessage.addListener(msg => {
     else if (msg.name === "intent") {
         //check for handlers at the content script layer (automatic handlers) - if not, dispatch to the API layer...
         if (_intentHandlers.indexOf(msg.data.intent) > -1 && contentManifest){
-            let intentData = contentManifest.intents.find(i => {return i.intent === msg.data.intent;});
+            let intentData = contentManifest.intents.find(i => {
+                return i.type === msg.data.context.type && i.intent === msg.data.intent;
+            });
             //set paramters
             let ctx = msg.data.context;
             let params = {};
@@ -69,10 +71,10 @@ port.onMessage.addListener(msg => {
                 Object.keys(contentManifest.params).forEach(key =>{ 
                     let param = contentManifest.params[key];
                     if (ctx.type === param.type){
-                        if (param.key){
+                        if (param.key && ctx[param.key]){
                             params[key] = ctx[param.key];
                         }
-                        else if (param.id){
+                        else if (param.id && ctx.id[param.id]){
                             params[key]  = ctx.id[param.id]; 
                         }
                     }
