@@ -11,35 +11,26 @@ const systemChannels = {};
 let contexts = {default:[]};
 
 //context listeners
-let contextListeners = [];
+let contextListeners = {default:[]};
 
 //intent listeners (dictionary keyed by intent name)
 let intentListeners = {};
 
-/*var generateTemplateFunction = (function(){
-    var cache = {};
+//system channels (color linking)
+const channels = [
+    {"id":"red","type":"system","visualIdentity":{"color":"#FF0000","glyph":"https://openfin.co/favicon.ico","name":"Red"}},
+    {"id":"orange","type":"system","visualIdentity":{"color":"#FF8000","glyph":"https://openfin.co/favicon.ico","name":"Orange"}},
+    {"id":"yellow","type":"system","visualIdentity":{"color":"#FFFF00","glyph":"https://openfin.co/favicon.ico","name":"Yellow"}},
+    {"id":"green","type":"system","visualIdentity":{"color":"#00FF00","glyph":"https://openfin.co/favicon.ico","name":"Green"}},
+    {"id":"blue","type":"system","visualIdentity":{"color":"#0000FF","glyph":"https://openfin.co/favicon.ico","name":"Blue"}},
+    {"id":"purple","type":"system","visualIdentity":{"color":"#FF00FF","glyph":"https://openfin.co/favicon.ico","name":"Purple"}}
+];
 
-    function generateTemplate(template){
-        var fn = cache[template];
 
-        if (!fn){
-            // Replace ${expressions} (etc) with ${map.expressions}.
-
-            var sanitized = template
-                .replace(/\$\{([\s]*[^;\s\{]+[\s]*)\}/g, function(_, match){
-                    return `\$\{map.${match.trim()}\}`;
-                    })
-                // Afterwards, replace anything that's not ${map.expressions}' (etc) with a blank string.
-                .replace(/(\$\{(?!map\.)[^}]+\})/g, '');
-
-            fn = Function('map', `return \`${sanitized}\``);
-        }
-
-        return fn;
-    }
-
-    return generateTemplate;
-})();*/
+//initialize the active channels
+channels.forEach(chan => {
+    contextListeners[chan.id] = [];
+    contexts[chan.id] = [];});
 
 fetch("http://localhost:3000/directory.json").then(_r =>{
                 let r = _r.clone();
@@ -50,7 +41,7 @@ fetch("http://localhost:3000/directory.json").then(_r =>{
 
 //to do: handle disconnects, remove listeners (identify listeners)
 chrome.runtime.onConnect.addListener(function(port) {
-    
+    console.log("connect",port );
     let app_url = new URL(port.sender.url);
     //look up in directory...
     //to do: disambiguate apps with matching origins...
@@ -61,33 +52,41 @@ chrome.runtime.onConnect.addListener(function(port) {
         }
         return false;
     });
-    //fetch and bundle the manifest data
+    //fetch and bundle environmnet data for the app: app manifest, system channels, etc
     if (entry){
         if (entry.manifest){
             fetch(entry.manifest).then(mR => {
                 mR.json().then(mD => {
                     entry.manifestContent = mD;
                     port.directoryData = entry;
-                    port.postMessage({name:"directoryData", data:port.directoryData});
+                    port.postMessage({name:"environmentData", 
+                    data:{
+                        directory:port.directoryData,
+                        systemChannels:channels}});
                 });
             });
         }
         else {
             port.directoryData = entry;
-            port.postMessage({name:"directoryData", data:port.directoryData});
+            port.postMessage({name:"environmentData", data:{
+                directory:port.directoryData,
+                systemChannels:channels}});
         }
     }
-    connected[port.sender.url] = port;
+    connected[(port.sender.id + port.sender.tab.id)] = port;
     port.onDisconnect.addListener(function(){
         console.log("disconnect",port);
-        let id = port.sender.url;
+        let id = (port.sender.id + port.sender.tab.id);
         connected[id] = null;
         //remove context listeners
-        contextListeners = contextListeners.filter(item => {return item.sender.url !== id; });
+        Object.keys(contextListeners).forEach(channel =>{
+            contextListeners[channel] = contextListeners[channel].filter(item => {return item !== id; });
+        }); 
+        
         //iterate through the intents and cleanup the listeners...
         Object.keys(intentListeners).forEach(key => {
             if (intentListeners[key].length > 0){
-                intentListeners[key]= intentListeners[key].filter(item => {return item.sender.url !== id; });
+                intentListeners[key]= intentListeners[key].filter(item => {return item.sender.id !== id; });
             }
         });
     });
@@ -108,7 +107,8 @@ chrome.runtime.onConnect.addListener(function(port) {
             }
         }
         else if (msg.method === "addContextListener"){
-            contextListeners.push(port);
+            let channel = connected[(port.sender.id + port.sender.tab.id)].channel ? connected[(port.sender.id + port.sender.tab.id)].channel : "default";
+            contextListeners[channel].push((port.sender.id + port.sender.tab.id));
         }
         else if (msg.method === "addIntentListener"){
             let name = msg.data.intent;
@@ -118,10 +118,13 @@ chrome.runtime.onConnect.addListener(function(port) {
             intentListeners[name].push(port);
         }
         else if (msg.method === "broadcast"){
-            contexts.default.unshift(msg.data.context);
+            let channel = connected[(port.sender.id + port.sender.tab.id)].channel ? connected[(port.sender.id + port.sender.tab.id)].channel : "default";
+            //is the app on a channel?
+           
+            contexts[channel].unshift(msg.data.context);
             //broadcast to listeners
-            contextListeners.forEach(l => {
-                l.postMessage({name:"context", data:msg.data});
+            contextListeners[channel].forEach(l => {
+                connected[l].postMessage({name:"context", data:msg.data});
             });
         }
         else if (msg.method === "raiseIntent"){
@@ -219,7 +222,7 @@ chrome.runtime.onConnect.addListener(function(port) {
             if (msg.selected.type === "window"){
                 let winList = intentListeners[msg.intent] ? intentListeners[msg.intent] : [];
                 let win = winList.find(item => {
-                    return item.sender && item.sender.id === msg.selected.details.sender.id;
+                    return item.sender && item.sender.tab.id === msg.selected.details.sender.tab.id;
                 });
                 if (win){
                     win.postMessage({name:"intent", data:{intent:msg.intent, context: msg.context}});    
@@ -234,8 +237,12 @@ chrome.runtime.onConnect.addListener(function(port) {
                         if (mD.intents){
                             //find the matching intent entry
                             let intentData = mD.intents.find(i => {
-                                return i.type === msg.context.type && i.intent === msg.intent;
-                                //return i.intent === msg.intent;
+                                if (i.type){
+                                   return i.type === msg.context.type && i.intent === msg.intent;
+                                }
+                                else {
+                                   return i.intent === msg.intent;
+                                }
                             });
                             //set paramters
                             let ctx = msg.context;
@@ -266,6 +273,20 @@ chrome.runtime.onConnect.addListener(function(port) {
                 });
             }
         }
+        else if (msg.method === "joinChannel"){
+           console.log(port); 
+           let chan = msg.data.channel;
+           let _id = (port.sender.id + port.sender.tab.id);
+           //remove from previous channel...
+            let prevChan = connected[_id].channel ? connected[_id].channel : "default";
+            contextListeners[prevChan] = contextListeners[prevChan].filter(id => {return id !== _id;} );
+           //add to new
+           contextListeners[chan].push(_id);
+           connected[_id].channel = chan;
+            //push current channel context
+           port.postMessage({name:"context", data:contexts[chan][0]});
+           
+        }
     });
 });
 
@@ -277,6 +298,7 @@ chrome.browserAction.onClicked.addListener(function(tab) {
       chrome.tabs.sendMessage(activeTab.id, {"message": "clicked_browser_action"});
     });
   });
+
 
 /*  chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     console.log(sender.tab ?

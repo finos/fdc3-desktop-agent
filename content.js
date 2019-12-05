@@ -6,6 +6,39 @@
  let _intentHandlers = [];
  let _contextHandlers = [];
  let contentManifest = null;
+ let systemChannels = null;
+
+ const colors = {
+    "default":{
+        color:"#fff",
+        hover:"#ececec"
+    },
+    "red":{
+        color:"#da2d2d",
+        hover:"#9d0b0b" 
+    },
+    "orange":{
+        color:"#eb8242",
+        hover:"#e25822"
+    },
+    "yellow":{
+        color:"#f6da63",
+        hover:"#e3c878"
+    },
+    "green":{
+        color:"#42b883",
+        hover:"#347474"
+    },
+    "blue":{
+        color:"#1089ff",
+        hover:"#505BDA"
+    },
+    "purple":{
+        color:"#C355F5",
+        hover:"#AA26DA"
+    }
+  };
+
 
  //inject the FDC3 API
  let s = document.createElement('script');
@@ -37,13 +70,22 @@ document.addEventListener('FDC3:addIntentListener',e => {
     port.postMessage({method:"addIntentListener", "data": e.detail}); 
 });
 
+document.addEventListener('FDC3:joinChannel',e => {
+    port.postMessage({method:"joinChannel", "data": e.detail}); 
+});
+
+document.addEventListener('FDC3:getSystemChannels',e => {
+    document.dispatchEvent(new CustomEvent("FDC3:systemChannels", {detail:{data: systemChannels}})); 
+});
+
 port.onMessage.addListener(msg => {
-    if (msg.name === "directoryData"){
+    if (msg.name === "environmentData"){
         console.log(msg.data);
         //if there is manifest content, wire up listeners if intents and context metadata are there
         let mani = msg.data.manifestContent;
-        //set global
+        //set globals
         contentManifest = mani;
+        systemChannels = msg.data.systemChannels;
         if (mani && mani.intents){
             //iterate through the intents, and set listeners
             mani.intents.forEach(intent => {
@@ -112,50 +154,80 @@ port.onMessage.addListener(msg => {
 
  //look for actionable entities
 
- var overlay = null; 
+ let overlay = null; 
+ document.addEventListener('keydown', k => {
+     if (k.code === "Escape" ){
+        if (overlay){
+         overlay.style.display = "none";
+        }
+        if (resolverOverlay){
+            resolverOverlay.style.display = "none";
+        }
+    }
+});
 
+ let resolverOverlay = null;
+
+ 
  //handle click on extension button
  //raise directory search overlay
  chrome.runtime.onMessage.addListener(
     function(request, sender, sendResponse) {
       if( request.message === "clicked_browser_action" ) {
+        //show color linking, search, other functions?...  
           if (! overlay){
             overlay = document.createElement("div");
-            overlay.style.width = "400";
-            overlay.style.height = "400";
-            overlay.style.left = "50%";
-           
-            overlay.style.top = "50%";
-            overlay.style.backgroundColor = "red";
-            overlay.style.position = "absolute";
-            overlay.style.display = "none;"
-     document.body.appendChild(overlay);
+            overlay.style.display = "none";
+            let root = document.createElement("div");
+            root.id = "fdc3-overlay";
+            let shadow = overlay.attachShadow({mode: 'open'});
+            let style = document.createElement('style');
+            style.textContent = `
+                #fdc3-overlay {
+                    width:500px;
+                    height:200px;
+                    margin-left:-250px;
+                    margin-top:-100px;
+                    left:50%;
+                    top:50%;
+                    background-color:#eee;
+                    position:absolute;
+                }
+            `;
+        
+            shadow.appendChild(style);
+            shadow.appendChild(root);
+            document.body.appendChild(overlay);
+            root.innerHTML = `
+                <fdc3-channel-picker></fdc3-channel-picker>
+            `;
           }
         overlay.style.display = "block";
+          
    
       }
       else if (request.message === "intent_resolver"){
-        if (! overlay){
-            overlay = document.createElement("div");
-            overlay.style.width = "400px";
-            overlay.style.height = "400px";
-            overlay.style.marginLeft = "-200px";
-            overlay.style.marginTop = "-200px";
-            overlay.style.left = "50%";
+        if (! resolverOverlay){
+            resolverOverlay = document.createElement("div");
+            resolverOverlay.style.width = "400px";
+            resolverOverlay.style.height = "400px";
+            resolverOverlay.style.marginLeft = "-200px";
+            resolverOverlay.style.marginTop = "-200px";
+            resolverOverlay.style.left = "50%";
            
-            overlay.style.top = "50%";
-            overlay.style.backgroundColor = "black";
-            overlay.style.position = "absolute";
-            overlay.style.display = "none;"
-            overlay.style.flexFlow = "row wrap";
-     document.body.appendChild(overlay);
+            resolverOverlay.style.top = "50%";
+            resolverOverlay.style.backgroundColor = "black";
+            resolverOverlay.style.position = "absolute";
+            resolverOverlay.style.display = "none;"
+            resolverOverlay.style.flexFlow = "row wrap";
+     document.body.appendChild(resolverOverlay);
           }
-        overlay.style.display = "block";
+          resolverOverlay.style.display = "block";
 
         let contents = `<div>Resolve Intent</div>
         <div  id="fdc3-resolver-list" syle="height:300;overflow:scroll;">
         </div>`;
-          overlay.innerHTML = contents;
+        resolverOverlay.innerHTML = contents;
         //contents
         request.data.forEach((item) => {
             let selected = item;
@@ -174,10 +246,10 @@ port.onMessage.addListener(msg => {
                     selected:selected,
                     context:request.context
                 }); 
-                overlay.innerHTML = "";
-                overlay.style.display = "none";
+                resolverOverlay.innerHTML = "";
+                resolverOverlay.style.display = "none";
             });
-            overlay.appendChild(rItem);
+            resolverOverlay.appendChild(rItem);
         });
       }
     }
