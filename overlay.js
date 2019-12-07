@@ -1,111 +1,38 @@
-window.fdc3 = {
-    _contextListeners:[],
-    _intentListeners:{},
-    open:function(name, context){
-        return new Promise((resolve, reject) => {
-            document.dispatchEvent(new CustomEvent('FDC3:open', {
-                detail:{
-                    name:name,
-                    context:context
-                } 
-                
-            }));
-            resolve(true);
+//system channels (color linking) - make this a module
+const systemChannels = [
+    {"id":"red","type":"system","visualIdentity":{"color":"#FF0000","glyph":"https://openfin.co/favicon.ico","name":"Red"}},
+    {"id":"orange","type":"system","visualIdentity":{"color":"#FF8000","glyph":"https://openfin.co/favicon.ico","name":"Orange"}},
+    {"id":"yellow","type":"system","visualIdentity":{"color":"#FFFF00","glyph":"https://openfin.co/favicon.ico","name":"Yellow"}},
+    {"id":"green","type":"system","visualIdentity":{"color":"#00FF00","glyph":"https://openfin.co/favicon.ico","name":"Green"}},
+    {"id":"blue","type":"system","visualIdentity":{"color":"#0000FF","glyph":"https://openfin.co/favicon.ico","name":"Blue"}},
+    {"id":"purple","type":"system","visualIdentity":{"color":"#FF00FF","glyph":"https://openfin.co/favicon.ico","name":"Purple"}}
+];
+
+function joinChannel(channel){
+    //get the current active tab and message
+    chrome.tabs.query({active:true, currentWindow:true},tab => {
+        chrome.tabs.sendMessage(tab[0].id, {
+            message:"popup-join-channel",
+            channel:channel
         });
-    },
-    broadcast:function(context){
-        return new Promise((resolve, reject) => {
-            document.dispatchEvent(new CustomEvent('FDC3:broadcast', {
-                detail:{
-                    context:context
-                } 
-                
-            }));
-            resolve(true);
+    });
 
+}
+
+
+function getSelectedChannel(){
+    return new Promise((resolve, reject) => {
+
+        chrome.tabs.query({active:true, currentWindow:true},tab => {
+            chrome.tabs.sendMessage(tab[0].id, {
+                message:"popup-get-current-channel"
+            },response =>{
+                resolve(response);
+            });
         });
-    },
-
-    raiseIntent:function(intent, context){
-        return new Promise((resolve, reject) => {
-            document.dispatchEvent(new CustomEvent('FDC3:raiseIntent', {
-                detail:{
-                    intent:intent,
-                    context:context
-                } 
-                
-            }));
-            resolve(true);
-
-        });
-    },
-
-    addContextListener:function(listener){
-        window.fdc3._contextListeners.push(listener);
-        document.dispatchEvent(new CustomEvent('FDC3:addContextListener', {
-            detail:{
-            }
-        }));
-    },
-
-    addIntentListener:function(intent, listener){
-        if (!window.fdc3._intentListeners[intent]){
-            window.fdc3._intentListeners[intent] = [];
-        }
-        window.fdc3._intentListeners[intent].push(listener);
-        document.dispatchEvent(new CustomEvent('FDC3:addIntentListener', {
-            detail:{
-                intent:intent
-            }
-        }));
-    },
-
-    getSystemChannels: function(){
-        return new Promise((resolve, reject) => {
-            document.addEventListener("FDC3:systemChannels",evt =>{
-                resolve(evt.detail.data);
-            }, {once : true});
-            document.dispatchEvent(new CustomEvent('FDC3:getSystemChannels', {}));
-                
-
-        });
-    },
-
-    joinChannel: function(channel){
-        return new Promise((resolve, reject) => {
-            document.addEventListener("FDC3:confirmJoin",evt =>{
-                resolve(true);
-            }, {once : true});
-            document.dispatchEvent(new CustomEvent('FDC3:joinChannel', {
-                detail:{
-                    channel:channel
-                }
-            }));
-                
-
-        });
-    }
-
-   
- };
-
- document.addEventListener("FDC3:context",evt => {
-     window.fdc3._contextListeners.forEach(l => {
-         l.call(this,evt.detail.data.context);
-     });
- });
-
- document.addEventListener("FDC3:intent",evt => {
-     if (window.fdc3._intentListeners[evt.detail.data.intent]){
-        window.fdc3._intentListeners[evt.detail.data.intent].forEach(l => {
-            l.call(this,evt.detail.data.context);
-        });
-     }
-});
-
-
-//components
-
+    });
+ 
+}
 
 class FDC3ChannelPicker extends HTMLElement {
     constructor() {
@@ -194,10 +121,9 @@ class FDC3ChannelPicker extends HTMLElement {
       shadow.appendChild(style);
       shadow.appendChild(wrapper);
 
-      fdc3.getSystemChannels().then(channels => {
           const target = wrapper;
         let defChan = [{id:"default"}];
-        channels = defChan.concat(channels ? channels : []);
+       let channels = defChan.concat(systemChannels ? systemChannels : []);
 
           channels.forEach(channel => {
               let ch = document.createElement("div");
@@ -214,22 +140,50 @@ class FDC3ChannelPicker extends HTMLElement {
               ch.addEventListener("mouseover",hover);
               ch.addEventListener("mouseout",revert);
           });
+         
+          getSelectedChannel().then(chan => {
+            console.log("selected channel : " + chan);
+            this.selectItem({target:{id:chan}});
+            //this.handle.style.backgroundColor = this.colors[chan].color;
 
-  });
+            if (!this.closed){
+                this.toggle();
+            }
+          });
+
+          chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+              if (request.message === "set-badge"){
+                  console.log("set-badge " + request.channel + " tab " + sender.tab.id);
+                chrome.browserAction.setBadgeText({text:"+",
+                                    tabId:sender.tab.id});
+                chrome.browserAction.setBadgeBackgroundColor({color:this.colors[request.channel].color,
+                                tabId:sender.tab.id});
+                }
+
+         });
+
     }
 
     selectItem(ev) {
         let selection = ev.target.id;
         if (selection === "default"){
-            //fdc3.defaultChannel.join();
-            fdc3.joinChannel(selection);
+            joinChannel(selection);
             this.toggle();
             this.handle.style.backgroundColor = "#ccc";
+            chrome.tabs.query({active:true, currentWindow:true},tab => {
+                chrome.browserAction.setBadgeText({text:"",
+                    tabId:tab[0].id});
+            });
         } else {
-            fdc3.joinChannel(selection);
+            joinChannel(selection);
                 this.toggle();
                 this.handle.style.backgroundColor = this.colors[selection].color;
-                
+             /*   chrome.tabs.query({active:true, currentWindow:true},tab => {
+                    chrome.browserAction.setBadgeText({text:"+",
+                        tabId:tab[0].id});
+                chrome.browserAction.setBadgeBackgroundColor({color:this.colors[selection].color,
+                    tabId:tab[0].id});
+                });*/
             
         }
     }
@@ -274,3 +228,4 @@ class FDC3ChannelPicker extends HTMLElement {
 }
  // Define the new element
  customElements.define("fdc3-channel-picker", FDC3ChannelPicker);
+

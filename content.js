@@ -7,37 +7,8 @@
  let _contextHandlers = [];
  let contentManifest = null;
  let systemChannels = null;
+ let currentChannel = null;
 
- const colors = {
-    "default":{
-        color:"#fff",
-        hover:"#ececec"
-    },
-    "red":{
-        color:"#da2d2d",
-        hover:"#9d0b0b" 
-    },
-    "orange":{
-        color:"#eb8242",
-        hover:"#e25822"
-    },
-    "yellow":{
-        color:"#f6da63",
-        hover:"#e3c878"
-    },
-    "green":{
-        color:"#42b883",
-        hover:"#347474"
-    },
-    "blue":{
-        color:"#1089ff",
-        hover:"#505BDA"
-    },
-    "purple":{
-        color:"#C355F5",
-        hover:"#AA26DA"
-    }
-  };
 
 
  //inject the FDC3 API
@@ -71,6 +42,7 @@ document.addEventListener('FDC3:addIntentListener',e => {
 });
 
 document.addEventListener('FDC3:joinChannel',e => {
+    currentChannel = e.detail.data.channel;
     port.postMessage({method:"joinChannel", "data": e.detail}); 
 });
 
@@ -82,20 +54,70 @@ port.onMessage.addListener(msg => {
     if (msg.name === "environmentData"){
         console.log(msg.data);
         //if there is manifest content, wire up listeners if intents and context metadata are there
-        let mani = msg.data.manifestContent;
+        let mani = msg.data.directory.manifestContent;
         //set globals
         contentManifest = mani;
         systemChannels = msg.data.systemChannels;
-        if (mani && mani.intents){
-            //iterate through the intents, and set listeners
-            mani.intents.forEach(intent => {
-                port.postMessage({method:"addIntentListener", "data": {intent:intent.intent }}); 
-                _intentHandlers.push(intent.intent);
-            });
-          
+        if (mani){
+            if (mani.intents){
+                //iterate through the intents, and set listeners
+                mani.intents.forEach(intent => {
+                    port.postMessage({method:"addIntentListener", "data": {intent:intent.intent }}); 
+                    _intentHandlers.push(intent.intent);
+                });
+            }
+            if (mani.contexts){
+                //iterate through context metadata and set listeners
+                mani.contexts.forEach(context => {
+                    port.postMessage({method:"addContextListener", "data": {context:context.type}}); 
+                    _contextHandlers.push(context.type);
+                });
+            
+            }
+        }
+        if (msg.data.currentChannel){
+            currentChannel = msg.data.currentChannel;
+            port.postMessage({method:"joinChannel", "data": {channel:currentChannel}}); 
+            
+            
         }
     }
    else  if (msg.name === "context"){
+       //check for handlers at the content script layer (automatic handlers) - if not, dispatch to the API layer...
+       if (_contextHandlers.indexOf(msg.data.context.type) > -1 && contentManifest){
+        let contextMeta = contentManifest.contexts.find(i => {
+            return i.type === msg.data.context.type;
+        });
+        //set paramters
+        let ctx = msg.data.context;
+        let params = {};
+       
+            Object.keys(contentManifest.params).forEach(key =>{ 
+                let param = contentManifest.params[key];
+                if (ctx.type === param.type){
+                    if (param.key && ctx[param.key]){
+                        params[key] = ctx[param.key];
+                    }
+                    else if (param.id && ctx.id[param.id]){
+                        params[key]  = ctx.id[param.id]; 
+                    }
+                }
+            });
+        
+        //eval the url
+        let template = contentManifest.templates[contextMeta.template];
+        Object.keys(params).forEach(key => {
+            template = template.replace("${" + key +"}",params[key]);
+
+        });
+        //don't reload if they are the same...
+        if (window.location.href !== template){
+            window.location.href = template; 
+        }
+        //focus the actual tab
+        window.focus();
+    }
+
         document.dispatchEvent(new CustomEvent("FDC3:context",{
             detail:{data:msg.data}
         }));
@@ -128,7 +150,10 @@ port.onMessage.addListener(msg => {
                 template = template.replace("${" + key +"}",params[key]);
 
             });
-            window.location.href = template; 
+            //don't reload if they are the same...
+            if (window.location.href !== template){
+                window.location.href = template; 
+            }
             window.focus();
         }
         document.dispatchEvent(new CustomEvent("FDC3:intent",{
@@ -173,7 +198,14 @@ port.onMessage.addListener(msg => {
  //raise directory search overlay
  chrome.runtime.onMessage.addListener(
     function(request, sender, sendResponse) {
-      if( request.message === "clicked_browser_action" ) {
+        if (request.message === "popup-get-current-channel"){
+            sendResponse(currentChannel);
+        }
+        else if (request.message === "popup-join-channel"){
+            currentChannel = request.channel;
+            port.postMessage({method:"joinChannel", "data": {channel:request.channel}}); 
+        }
+      else if( request.message === "clicked_browser_action" ) {
         //show color linking, search, other functions?...  
           if (! overlay){
             overlay = document.createElement("div");

@@ -9,6 +9,8 @@ let manifests = {};
 const systemChannels = {};
 //running contexts 
 let contexts = {default:[]};
+//track tab channel membership (apps can disconnect and reconnect, but tabs and channel membership persist)
+let tabChannels = {};
 
 //context listeners
 let contextListeners = {default:[]};
@@ -26,8 +28,39 @@ const channels = [
     {"id":"purple","type":"system","visualIdentity":{"color":"#FF00FF","glyph":"https://openfin.co/favicon.ico","name":"Purple"}}
 ];
 
+const colors = {
+    "default":{
+        color:"#fff",
+        hover:"#ececec"
+    },
+    "red":{
+        color:"#da2d2d",
+        hover:"#9d0b0b" 
+    },
+    "orange":{
+        color:"#eb8242",
+        hover:"#e25822"
+    },
+    "yellow":{
+        color:"#f6da63",
+        hover:"#e3c878"
+    },
+    "green":{
+        color:"#42b883",
+        hover:"#347474"
+    },
+    "blue":{
+        color:"#1089ff",
+        hover:"#505BDA"
+    },
+    "purple":{
+        color:"#C355F5",
+        hover:"#AA26DA"
+    }
+  };
 
 //initialize the active channels
+//need to map channel membership to tabs, listeners to apps, and contexts to channels
 channels.forEach(chan => {
     contextListeners[chan.id] = [];
     contexts[chan.id] = [];});
@@ -43,6 +76,7 @@ fetch("http://localhost:3000/directory.json").then(_r =>{
 chrome.runtime.onConnect.addListener(function(port) {
     console.log("connect",port );
     let app_url = new URL(port.sender.url);
+    let app_id = (port.sender.id + port.sender.tab.id);
     //look up in directory...
     //to do: disambiguate apps with matching origins...
     let entry = directory.find(ent => {
@@ -53,27 +87,31 @@ chrome.runtime.onConnect.addListener(function(port) {
         return false;
     });
     //fetch and bundle environmnet data for the app: app manifest, system channels, etc
+    let data = {systemChannels:channels};
+    data.currentChannel = tabChannels[(port.sender.tab.id + "")];
+    data.tabId = port.sender.tab.id;
+    
     if (entry){
         if (entry.manifest){
             fetch(entry.manifest).then(mR => {
+
                 mR.json().then(mD => {
                     entry.manifestContent = mD;
                     port.directoryData = entry;
+                    data.directory = port.directoryData;
                     port.postMessage({name:"environmentData", 
-                    data:{
-                        directory:port.directoryData,
-                        systemChannels:channels}});
+                    data:data});
                 });
             });
         }
         else {
             port.directoryData = entry;
-            port.postMessage({name:"environmentData", data:{
-                directory:port.directoryData,
-                systemChannels:channels}});
+            data.directory = port.directoryData;
+            port.postMessage({name:"environmentData", data:data});
         }
     }
-    connected[(port.sender.id + port.sender.tab.id)] = port;
+    connected[app_id] = port;
+    
     port.onDisconnect.addListener(function(){
         console.log("disconnect",port);
         let id = (port.sender.id + port.sender.tab.id);
@@ -283,8 +321,13 @@ chrome.runtime.onConnect.addListener(function(port) {
            //add to new
            contextListeners[chan].push(_id);
            connected[_id].channel = chan;
-            //push current channel context
-           port.postMessage({name:"context", data:contexts[chan][0]});
+           tabChannels[(port.sender.tab.id + "")] = chan;
+           //set the badge state
+           chrome.browserAction.setBadgeText({text:"+",tabId:port.sender.tab.id});
+           chrome.browserAction.setBadgeBackgroundColor({color:colors[chan].color,
+               tabId:port.sender.tab.id});
+            //push current channel context 
+           port.postMessage({name:"context", data:{context:contexts[chan][0]}});
            
         }
     });
