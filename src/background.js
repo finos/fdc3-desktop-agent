@@ -1,12 +1,11 @@
-
+import channels  from "./system-channels";
 
 let directory = null;
 //connected end points / apps
 let connected = {};
 //memoize dictionary of manifests
 let manifests = {};
-//the standard system channels
-const systemChannels = {};
+
 //running contexts 
 let contexts = {default:[]};
 //track tab channel membership (apps can disconnect and reconnect, but tabs and channel membership persist)
@@ -18,15 +17,6 @@ let contextListeners = {default:[]};
 //intent listeners (dictionary keyed by intent name)
 let intentListeners = {};
 
-//system channels (color linking)
-const channels = [
-    {"id":"red","type":"system","visualIdentity":{"color":"#FF0000","glyph":"https://openfin.co/favicon.ico","name":"Red"}},
-    {"id":"orange","type":"system","visualIdentity":{"color":"#FF8000","glyph":"https://openfin.co/favicon.ico","name":"Orange"}},
-    {"id":"yellow","type":"system","visualIdentity":{"color":"#FFFF00","glyph":"https://openfin.co/favicon.ico","name":"Yellow"}},
-    {"id":"green","type":"system","visualIdentity":{"color":"#00FF00","glyph":"https://openfin.co/favicon.ico","name":"Green"}},
-    {"id":"blue","type":"system","visualIdentity":{"color":"#0000FF","glyph":"https://openfin.co/favicon.ico","name":"Blue"}},
-    {"id":"purple","type":"system","visualIdentity":{"color":"#FF00FF","glyph":"https://openfin.co/favicon.ico","name":"Purple"}}
-];
 
 const colors = {
     "default":{
@@ -61,6 +51,7 @@ const colors = {
 
 //initialize the active channels
 //need to map channel membership to tabs, listeners to apps, and contexts to channels
+console.log(channels);
 channels.forEach(chan => {
     contextListeners[chan.id] = [];
     contexts[chan.id] = [];});
@@ -86,8 +77,8 @@ chrome.runtime.onConnect.addListener(function(port) {
         }
         return false;
     });
-    //fetch and bundle environmnet data for the app: app manifest, system channels, etc
-    let data = {systemChannels:channels};
+    //fetch and bundle environmnet data for the app: app manifest, etc
+    let data = {};
     data.currentChannel = tabChannels[(port.sender.tab.id + "")];
     data.tabId = port.sender.tab.id;
     
@@ -341,30 +332,3 @@ chrome.browserAction.onClicked.addListener(function(tab) {
       chrome.tabs.sendMessage(activeTab.id, {"message": "clicked_browser_action"});
     });
   });
-
-
-/*  chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
-    console.log(sender.tab ?
-        "from a content script:" + sender.tab.url :
-        "from the extension");
-
-        let result = directory.filter(item => item.name === request.detail.name);
-        if (result.length > 0){
-            //get the manifest...
-            fetch(result[0].manifest).then(mR => {
-                mR.json().then(mD => {
-                    let win = window.open(mD.startup_app.url,request.name);
-                    win.focus();
-                    sendResponse(true);
-                });
-            });
-            return true;
-        }
-        else {
-            sendResponse(false);
-        }
-              
-        return true;
-      }
-  );*/
-

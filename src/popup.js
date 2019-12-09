@@ -1,12 +1,4 @@
-//system channels (color linking) - make this a module
-const systemChannels = [
-    {"id":"red","type":"system","visualIdentity":{"color":"#FF0000","glyph":"https://openfin.co/favicon.ico","name":"Red"}},
-    {"id":"orange","type":"system","visualIdentity":{"color":"#FF8000","glyph":"https://openfin.co/favicon.ico","name":"Orange"}},
-    {"id":"yellow","type":"system","visualIdentity":{"color":"#FFFF00","glyph":"https://openfin.co/favicon.ico","name":"Yellow"}},
-    {"id":"green","type":"system","visualIdentity":{"color":"#00FF00","glyph":"https://openfin.co/favicon.ico","name":"Green"}},
-    {"id":"blue","type":"system","visualIdentity":{"color":"#0000FF","glyph":"https://openfin.co/favicon.ico","name":"Blue"}},
-    {"id":"purple","type":"system","visualIdentity":{"color":"#FF00FF","glyph":"https://openfin.co/favicon.ico","name":"Purple"}}
-];
+import systemChannels from "./system-channels";
 
 function joinChannel(channel){
     //get the current active tab and message
@@ -144,7 +136,6 @@ class FDC3ChannelPicker extends HTMLElement {
           getSelectedChannel().then(chan => {
             console.log("selected channel : " + chan);
             this.selectItem({target:{id:chan}});
-            //this.handle.style.backgroundColor = this.colors[chan].color;
 
             if (!this.closed){
                 this.toggle();
@@ -178,12 +169,7 @@ class FDC3ChannelPicker extends HTMLElement {
             joinChannel(selection);
                 this.toggle();
                 this.handle.style.backgroundColor = this.colors[selection].color;
-             /*   chrome.tabs.query({active:true, currentWindow:true},tab => {
-                    chrome.browserAction.setBadgeText({text:"+",
-                        tabId:tab[0].id});
-                chrome.browserAction.setBadgeBackgroundColor({color:this.colors[selection].color,
-                    tabId:tab[0].id});
-                });*/
+
             
         }
     }

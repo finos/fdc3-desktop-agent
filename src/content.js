@@ -1,4 +1,6 @@
- //establish comms with the background script 
+import channels from "./system-channels";
+
+//establish comms with the background script 
  let port = chrome.runtime.connect({name: "fdc3"});
 
  //automated handlers based on manifest metadata - other handlers are set and dispatched by the API layer
@@ -6,7 +8,7 @@
  let _intentHandlers = [];
  let _contextHandlers = [];
  let contentManifest = null;
- let systemChannels = null;
+
  let currentChannel = null;
 
 
@@ -57,7 +59,6 @@ port.onMessage.addListener(msg => {
         let mani = msg.data.directory.manifestContent;
         //set globals
         contentManifest = mani;
-        systemChannels = msg.data.systemChannels;
         if (mani){
             if (mani.intents){
                 //iterate through the intents, and set listeners
