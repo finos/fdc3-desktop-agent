@@ -18,37 +18,6 @@ let contextListeners = {default:[]};
 let intentListeners = {};
 
 
-const colors = {
-    "default":{
-        color:"#fff",
-        hover:"#ececec"
-    },
-    "red":{
-        color:"#da2d2d",
-        hover:"#9d0b0b" 
-    },
-    "orange":{
-        color:"#eb8242",
-        hover:"#e25822"
-    },
-    "yellow":{
-        color:"#f6da63",
-        hover:"#e3c878"
-    },
-    "green":{
-        color:"#42b883",
-        hover:"#347474"
-    },
-    "blue":{
-        color:"#1089ff",
-        hover:"#505BDA"
-    },
-    "purple":{
-        color:"#C355F5",
-        hover:"#AA26DA"
-    }
-  };
-
 //initialize the active channels
 //need to map channel membership to tabs, listeners to apps, and contexts to channels
 console.log(channels);
@@ -310,12 +279,16 @@ chrome.runtime.onConnect.addListener(function(port) {
             let prevChan = connected[_id].channel ? connected[_id].channel : "default";
             contextListeners[prevChan] = contextListeners[prevChan].filter(id => {return id !== _id;} );
            //add to new
+           if (!contextListeners[chan]){
+            contextListeners[chan] = [];
+           }
            contextListeners[chan].push(_id);
            connected[_id].channel = chan;
            tabChannels[(port.sender.tab.id + "")] = chan;
            //set the badge state
            chrome.browserAction.setBadgeText({text:"+",tabId:port.sender.tab.id});
-           chrome.browserAction.setBadgeBackgroundColor({color:colors[chan].color,
+           let selectedChannel = channels.find(_chan => {return _chan.id === chan;});
+           chrome.browserAction.setBadgeBackgroundColor({color:selectedChannel.visualIdentity.color,
                tabId:port.sender.tab.id});
             //push current channel context 
            port.postMessage({name:"context", data:{context:contexts[chan][0]}});

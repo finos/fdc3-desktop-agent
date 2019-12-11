@@ -69,38 +69,7 @@ class FDC3ChannelPicker extends HTMLElement {
       }
       `;
 
-      const colors = {
-        "default":{
-            color:"#fff",
-            hover:"#ececec"
-        },
-        "red":{
-            color:"#da2d2d",
-            hover:"#9d0b0b" 
-        },
-        "orange":{
-            color:"#eb8242",
-            hover:"#e25822"
-        },
-        "yellow":{
-            color:"#f6da63",
-            hover:"#e3c878"
-        },
-        "green":{
-            color:"#42b883",
-            hover:"#347474"
-        },
-        "blue":{
-            color:"#1089ff",
-            hover:"#505BDA"
-        },
-        "purple":{
-            color:"#C355F5",
-            hover:"#AA26DA"
-        }
-      };
 
-      this.colors = colors;
 
       let handle = document.createElement("div");
           handle.id = "handle";
@@ -114,23 +83,24 @@ class FDC3ChannelPicker extends HTMLElement {
       shadow.appendChild(wrapper);
 
           const target = wrapper;
-        let defChan = [{id:"default"}];
-       let channels = defChan.concat(systemChannels ? systemChannels : []);
-
-          channels.forEach(channel => {
-              let ch = document.createElement("div");
-              let select = this.selectItem.bind(this);
-              let hover = this.hoverItem.bind(this);
-              let revert = this.revertItem.bind(this);
-              ch.id = channel.id;
-              ch.className = "picker-item";
+        let defChan = [{id:"default","visualIdentity":{color:"#fff",color2:"#ccc"}}];
+       this.channels = defChan.concat(systemChannels ? systemChannels : []);
+       console.log(this.channels);
+       
+          this.channels.forEach(channel => {
+                let ch = document.createElement("div");
+                let select = this.selectItem.bind(this);
+                let hover = this.hoverItem.bind(this);
+                let revert = this.revertItem.bind(this);
+                ch.id = channel.id;
+                ch.className = "picker-item";
               
-                ch.style.backgroundColor = colors[channel.id].color;
+                ch.style.backgroundColor = channel.visualIdentity.color;
               
-              target.appendChild(ch);
-              ch.addEventListener("click",select);
-              ch.addEventListener("mouseover",hover);
-              ch.addEventListener("mouseout",revert);
+                target.appendChild(ch);
+                ch.addEventListener("click",select);
+                ch.addEventListener("mouseover",hover);
+                ch.addEventListener("mouseout",revert);
           });
          
           getSelectedChannel().then(chan => {
@@ -147,7 +117,8 @@ class FDC3ChannelPicker extends HTMLElement {
                   console.log("set-badge " + request.channel + " tab " + sender.tab.id);
                 chrome.browserAction.setBadgeText({text:"+",
                                     tabId:sender.tab.id});
-                chrome.browserAction.setBadgeBackgroundColor({color:this.colors[request.channel].color,
+                let selectedChannel = this.channels.find(chan => {return chan.id === request.channel});
+                chrome.browserAction.setBadgeBackgroundColor({color:selectedChannel.visualIdentity.color,
                                 tabId:sender.tab.id});
                 }
 
@@ -168,20 +139,23 @@ class FDC3ChannelPicker extends HTMLElement {
         } else {
             joinChannel(selection);
                 this.toggle();
-                this.handle.style.backgroundColor = this.colors[selection].color;
-
-            
+                let selectedChannel = this.channels.find(chan => {return chan.id === selection});
+                if (selectedChannel && selectedChannel.visualIdentity){
+                    this.handle.style.backgroundColor = selectedChannel.visualIdentity.color;
+                }
         }
     }
 
     hoverItem(ev){
         let selection = ev.target.id;
-        ev.target.style.backgroundColor = this.colors[selection].hover;
+        let selectedChannel = this.channels.find(chan => {return chan.id === selection});
+        ev.target.style.backgroundColor = selectedChannel.visualIdentity.color2;
     }
 
     revertItem(ev){
         let selection = ev.target.id;
-        ev.target.style.backgroundColor = this.colors[selection].color;
+        let selectedChannel = this.channels.find(chan => {return chan.id === selection});
+        ev.target.style.backgroundColor = selectedChannel.visualIdentity.color;
     }
     toggle() {
       let root = this.shadowRoot;
