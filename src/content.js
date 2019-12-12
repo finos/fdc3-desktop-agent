@@ -137,10 +137,19 @@ port.onMessage.addListener(msg => {
     else if (msg.name === "intent") {
         //check for handlers at the content script layer (automatic handlers) - if not, dispatch to the API layer...
         if (_intentHandlers.indexOf(msg.data.intent) > -1 && contentManifest){
-            let intentData = contentManifest.intents.find(i => {
+            let intentData = contentManifest.intents.filter(i => {
               //  return (i.type && i.type === msg.data.context.type) && i.intent === msg.data.intent;
               return i.intent === msg.data.intent;
             });
+            //check if there is more than one intent template with different context types
+            if (intentData.length > 1 && msg.data.context.type){
+                intentData = intentData.find(i => {
+                    return (i.type === msg.data.context.type);
+                });
+            }
+            if (Array.isArray(intentData)){
+                intentData = intentData[0];
+            }
             //set paramters
             let ctx = msg.data.context;
             let params = {};
@@ -208,6 +217,8 @@ let resolver = null;
             document.body.appendChild(resolver);
         }
         resolver.style.display = "block";
+        let header = resolver.shadowRoot.querySelectorAll("#resolve-header")[0];
+        header.innerText = `Choose an App for Intent '${request.intent}'`;
         let list = resolver.shadowRoot.querySelectorAll("#resolve-list")[0];
         list.innerHTML = "";
 
@@ -236,41 +247,34 @@ let resolver = null;
                 //titleNode = document.createElement("span");
                 titleNode.id = "title-" + tab.id;
                 titleNode.innerText = title;
+                titleNode.title = tab.url;
                 let query = "#title-" + tab.id;
                 
                 //async get the window title
                 getTabTitle(tab.id).then(t => { 
                     let titles =  list.querySelectorAll(query);
-                    if (titles.length > 0){
+                    if (titles.length > 0 && t.length > 0){
                         titles[0].innerText = t;
                     }
                 });
+            }
+            else {
+                if (data.icons && data.icons.length > 0){
+                    iconNode.src = data.icons[0].icon;
+                }
             }
             if (titleNode){
                 if (titleNode.innerText.length === 0){
                     titleNode.innerText = title;
                 }
-                titleNode.addEventListener("click",evt => {
-                    //send resolution message to extension to route
-                   // console.log(`intent resolved (window).  selected = ${JSON.stringify(selected)} intent = ${JSON.stringify(request.intent)} contect = ${JSON.stringify(request.context)}`)
-                    port.postMessage({
-                        method:"resolveIntent",
-                        intent:request.intent,
-                        selected:selected,
-                        context:request.context
-                    }); 
-                    list.innerHTML = "";
-                    resolver.style.display = "none";
-                });
-            }
-          /*  else {
+                if (titleNode.title.length === 0){
+                    titleNode.title = data.start_url;
+                }
                 
-                rItem.innerText = title;
-            
+            }
             rItem.addEventListener("click",evt => {
                 //send resolution message to extension to route
-               // console.log(`intent resolved (directory).  selected = ${JSON.stringify(selected)} intent = ${JSON.stringify(request.intent)} contect = ${JSON.stringify(request.context)}`)
-                    
+               // console.log(`intent resolved (window).  selected = ${JSON.stringify(selected)} intent = ${JSON.stringify(request.intent)} contect = ${JSON.stringify(request.context)}`)
                 port.postMessage({
                     method:"resolveIntent",
                     intent:request.intent,
@@ -280,7 +284,6 @@ let resolver = null;
                 list.innerHTML = "";
                 resolver.style.display = "none";
             });
-        }*/
             list.appendChild(rItem);
         });
       }
@@ -310,15 +313,28 @@ let resolver = null;
             margin-top:-200px;
             left:50%;
             top:50%;
-            background-color:#222;
+            background-color:#444;
             position:absolute;
             z-index:9999;
+            font-family:sans-serif;
+            filter: drop-shadow(6px 4px 1px #969696);
+            border-radius: 10px;
    
+        }
+
+        #resolve-header {
+            height:25px;
+            color:#eee;
+            font-size: 18px;
+            width: 100%;
+            text-align: center;
+            padding-top: 10px;
         }
             
         #resolve-list {
             height:300px;
             overflow:scroll;
+            margin:10px
         }
         
         #resolve-list .item {
@@ -331,14 +347,18 @@ let resolver = null;
 
         #resolve-list .item .icon {
            height:20px;
+           padding-right:3px;
         }
         
         #resolve-list .item:hover {
             background-color:#999;
             color:#ccc;
+            cursor: pointer;
         }
         `;
-
+        let header = document.createElement('div');
+        header.id = "resolve-header";
+        wrapper.appendChild(header);
         let list = document.createElement('div');
         list.id = "resolve-list";
         wrapper.appendChild(list);
