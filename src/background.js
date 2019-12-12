@@ -84,7 +84,7 @@ chrome.runtime.onConnect.addListener(function(port) {
         //iterate through the intents and cleanup the listeners...
         Object.keys(intentListeners).forEach(key => {
             if (intentListeners[key].length > 0){
-                intentListeners[key]= intentListeners[key].filter(item => {return item.sender.id !== id; });
+                intentListeners[key]= intentListeners[key].filter(item => {return item.sender.tab.id !== port.sender.tab.id; });
             }
         });
     });
@@ -293,6 +293,14 @@ chrome.runtime.onConnect.addListener(function(port) {
             //push current channel context 
            port.postMessage({name:"context", data:{context:contexts[chan][0]}});
            
+        }
+        else if (msg.method === "getTabTitle"){
+            let id = msg.tabId;
+            chrome.tabs.sendMessage(id, {"message": "get-tab-title"}, function(r){
+                port.postMessage({name:"tabTitle",
+                                    tabId:id,
+                                data:{title:r}});
+            });
         }
     });
 });

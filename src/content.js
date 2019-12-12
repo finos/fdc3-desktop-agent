@@ -11,7 +11,18 @@ import channels from "./system-channels";
 
  let currentChannel = null;
 
-
+ //retrieve the document title for a tab
+function getTabTitle(tabId){
+    let id = tabId;
+    return new Promise((resolve, reject) => {
+        port.onMessage.addListener(msg => {
+            if (msg.name === "tabTitle" && id === msg.tabId){
+                resolve(msg.data.title);
+            }
+        });
+        port.postMessage({method:"getTabTitle", "tabId":tabId});
+    });  
+}
 
  //inject the FDC3 API
  let s = document.createElement('script');
@@ -127,7 +138,8 @@ port.onMessage.addListener(msg => {
         //check for handlers at the content script layer (automatic handlers) - if not, dispatch to the API layer...
         if (_intentHandlers.indexOf(msg.data.intent) > -1 && contentManifest){
             let intentData = contentManifest.intents.find(i => {
-                return i.type === msg.data.context.type && i.intent === msg.data.intent;
+              //  return (i.type && i.type === msg.data.context.type) && i.intent === msg.data.intent;
+              return i.intent === msg.data.intent;
             });
             //set paramters
             let ctx = msg.data.context;
@@ -183,107 +195,177 @@ port.onMessage.addListener(msg => {
  let overlay = null; 
  document.addEventListener('keydown', k => {
      if (k.code === "Escape" ){
-        if (overlay){
-         overlay.style.display = "none";
-        }
-        if (resolverOverlay){
-            resolverOverlay.style.display = "none";
+     
+        if (resolver){
+            resolver.style.display = "none";
         }
     }
 });
 
- let resolverOverlay = null;
+ let resolver = null;
 
  
  //handle click on extension button
  //raise directory search overlay
  chrome.runtime.onMessage.addListener(
     function(request, sender, sendResponse) {
-        if (request.message === "popup-get-current-channel"){
+        if (request.message === "get-tab-title"){
+            sendResponse(document.title);
+        }
+        else if (request.message === "popup-get-current-channel"){
             sendResponse(currentChannel);
         }
         else if (request.message === "popup-join-channel"){
             currentChannel = request.channel;
             port.postMessage({method:"joinChannel", "data": {channel:request.channel}}); 
         }
-      else if( request.message === "clicked_browser_action" ) {
-        //show color linking, search, other functions?...  
-          if (! overlay){
-            overlay = document.createElement("div");
-            overlay.style.display = "none";
-            let root = document.createElement("div");
-            root.id = "fdc3-overlay";
-            let shadow = overlay.attachShadow({mode: 'open'});
-            let style = document.createElement('style');
-            style.textContent = `
-                #fdc3-overlay {
-                    width:500px;
-                    height:200px;
-                    margin-left:-250px;
-                    margin-top:-100px;
-                    left:50%;
-                    top:50%;
-                    background-color:#eee;
-                    position:absolute;
-                }
-            `;
-        
-            shadow.appendChild(style);
-            shadow.appendChild(root);
-            document.body.appendChild(overlay);
-            root.innerHTML = `
-                <fdc3-channel-picker></fdc3-channel-picker>
-            `;
-          }
-        overlay.style.display = "block";
-          
-   
-      }
+  
       else if (request.message === "intent_resolver"){
-        if (! resolverOverlay){
-            resolverOverlay = document.createElement("div");
-            resolverOverlay.style.width = "400px";
-            resolverOverlay.style.height = "400px";
-            resolverOverlay.style.marginLeft = "-200px";
-            resolverOverlay.style.marginTop = "-200px";
-            resolverOverlay.style.left = "50%";
-           
-            resolverOverlay.style.top = "50%";
-            resolverOverlay.style.backgroundColor = "black";
-            resolverOverlay.style.position = "absolute";
-            resolverOverlay.style.display = "none;"
-            resolverOverlay.style.flexFlow = "row wrap";
-     document.body.appendChild(resolverOverlay);
+        if (! resolver){
+         resolver = createResolverRoot();
+   
+     document.body.appendChild(resolver);
+            
           }
-          resolverOverlay.style.display = "block";
+          resolver.style.display = "block";
+          let list = resolver.shadowRoot.querySelectorAll("#resolve-list")[0];
+          list.innerHTML = "";
 
-        let contents = `<div>Resolve Intent</div>
-        <div  id="fdc3-resolver-list" syle="height:300;overflow:scroll;">
-        </div>`;
-        resolverOverlay.innerHTML = contents;
         //contents
         request.data.forEach((item) => {
             let selected = item;
             let data = item.details.directoryData ? item.details.directoryData : item.details;
             let rItem = document.createElement("div");
-            console.log(data);
-            rItem.style.color = "white";
-            rItem.style.flexFlow = "row";
-            rItem.style.height = "20px";
-            rItem.innerText = data.title
+
+            rItem.className = "item";
+            let title = data.title;
+            let titleNode = null;
+            //title should reflect if this is creating a new window, or loading to an existing one
+            if (item.type === "window"){
+                let tab = item.details.sender.tab;
+                let icon = document.createElement("img");
+                icon.className = "icon"; 
+                if (tab.favIconUrl){
+                    icon.src = tab.favIconUrl;
+                }
+                rItem.appendChild(icon);
+                titleNode = document.createElement("span");
+                titleNode.id = "title-" + tab.id;
+                titleNode.innerText = title;
+                let query = "#title-" + tab.id;
+                rItem.appendChild(titleNode);
+                //async get the window title
+                getTabTitle(tab.id).then(t => { 
+                    let titles =  list.querySelectorAll(query)[0];
+                    if (titles.length > 0){
+                        titles.innerText += ` (${t})`;
+                    }
+                });
+                //get the window.title value
+                //title value is wrong - will need to message to the content script
+                let winTitle = chrome
+                title = `${title} (${tab.title})`;
+            }
+            if (titleNode){
+                titleNode.innerText = title;
+                titleNode.addEventListener("click",evt => {
+                    //send resolution message to extension to route
+                    console.log(`intent resolved (window).  selected = ${JSON.stringify(selected)} intent = ${JSON.stringify(request.intent)} contect = ${JSON.stringify(request.context)}`)
+                    port.postMessage({
+                        method:"resolveIntent",
+                        intent:request.intent,
+                        selected:selected,
+                        context:request.context
+                    }); 
+                    list.innerHTML = "";
+                    resolver.style.display = "none";
+                });
+            }
+            else {
+                rItem.innerText = title;
+            
             rItem.addEventListener("click",evt => {
                 //send resolution message to extension to route
+                console.log(`intent resolved (directory).  selected = ${JSON.stringify(selected)} intent = ${JSON.stringify(request.intent)} contect = ${JSON.stringify(request.context)}`)
+                    
                 port.postMessage({
                     method:"resolveIntent",
                     intent:request.intent,
                     selected:selected,
                     context:request.context
                 }); 
-                resolverOverlay.innerHTML = "";
-                resolverOverlay.style.display = "none";
+                list.innerHTML = "";
+                resolver.style.display = "none";
             });
-            resolverOverlay.appendChild(rItem);
+        }
+            list.appendChild(rItem);
         });
       }
+
     }
+    
   );
+
+  function createResolverRoot(){
+ 
+        // Create root element
+        let root = document.createElement('div');
+        let wrapper = document.createElement('div');
+        wrapper.id = "fdc3-intent-resolver";
+
+         // Create a shadow root
+         var shadow = root.attachShadow({mode: 'open'});
+
+        // Create some CSS to apply to the shadow dom
+        const style = document.createElement('style');
+
+        style.textContent = `
+        #fdc3-intent-resolver {
+            width:400px;
+            height:400px;
+            margin-left:-200px;
+            margin-top:-200px;
+            left:50%;
+            top:50%;
+            background-color:#222;
+            position:absolute;
+            z-index:9999;
+   
+        }
+            
+        #resolve-list {
+            height:300px;
+            overflow:scroll;
+        }
+        
+        #resolve-list .item {
+            color:#fff;
+            flexFlow:row;
+            height:20px;
+            padding:3px;
+        }
+
+
+        #resolve-list .item .icon {
+           height:20px;
+        }
+        
+        #resolve-list .item:hover {
+            background-color:#999;
+            color:#ccc;
+        }
+        `;
+
+        let list = document.createElement('div');
+        list.id = "resolve-list";
+        wrapper.appendChild(list);
+        
+        // Attach the created elements to the shadow dom
+        shadow.appendChild(style);
+        shadow.appendChild(wrapper);
+        
+
+      
+        return root;
+    }
+  
