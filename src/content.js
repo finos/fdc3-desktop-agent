@@ -176,23 +176,7 @@ port.onMessage.addListener(msg => {
 
 });
 
- //handle intents
-
- //handle context
-
- //listen for broadcast event from the content
-
- //listen for raise intent from the content
-
- //listen for URL changes
-
- //log relevant information about the page
-
- //log relevant user activity
-
- //look for actionable entities
-
- let overlay = null; 
+let resolver = null;
  document.addEventListener('keydown', k => {
      if (k.code === "Escape" ){
      
@@ -201,8 +185,6 @@ port.onMessage.addListener(msg => {
         }
     }
 });
-
- let resolver = null;
 
  
  //handle click on extension button
@@ -222,14 +204,12 @@ port.onMessage.addListener(msg => {
   
       else if (request.message === "intent_resolver"){
         if (! resolver){
-         resolver = createResolverRoot();
-   
-     document.body.appendChild(resolver);
-            
-          }
-          resolver.style.display = "block";
-          let list = resolver.shadowRoot.querySelectorAll("#resolve-list")[0];
-          list.innerHTML = "";
+            resolver = createResolverRoot();
+            document.body.appendChild(resolver);
+        }
+        resolver.style.display = "block";
+        let list = resolver.shadowRoot.querySelectorAll("#resolve-list")[0];
+        list.innerHTML = "";
 
         //contents
         request.data.forEach((item) => {
@@ -239,38 +219,40 @@ port.onMessage.addListener(msg => {
 
             rItem.className = "item";
             let title = data.title;
-            let titleNode = null;
+            let iconNode = document.createElement("img");
+            iconNode.className = "icon";
+            rItem.appendChild(iconNode);
+            let titleNode = document.createElement("span");
+            rItem.appendChild(titleNode);
             //title should reflect if this is creating a new window, or loading to an existing one
             if (item.type === "window"){
                 let tab = item.details.sender.tab;
-                let icon = document.createElement("img");
-                icon.className = "icon"; 
+               // let icon = document.createElement("img");
+               // icon.className = "icon"; 
                 if (tab.favIconUrl){
-                    icon.src = tab.favIconUrl;
+                    iconNode.src = tab.favIconUrl;
                 }
-                rItem.appendChild(icon);
-                titleNode = document.createElement("span");
+                //rItem.appendChild(icon);
+                //titleNode = document.createElement("span");
                 titleNode.id = "title-" + tab.id;
                 titleNode.innerText = title;
                 let query = "#title-" + tab.id;
-                rItem.appendChild(titleNode);
+                
                 //async get the window title
                 getTabTitle(tab.id).then(t => { 
-                    let titles =  list.querySelectorAll(query)[0];
+                    let titles =  list.querySelectorAll(query);
                     if (titles.length > 0){
-                        titles.innerText += ` (${t})`;
+                        titles[0].innerText = t;
                     }
                 });
-                //get the window.title value
-                //title value is wrong - will need to message to the content script
-                let winTitle = chrome
-                title = `${title} (${tab.title})`;
             }
             if (titleNode){
-                titleNode.innerText = title;
+                if (titleNode.innerText.length === 0){
+                    titleNode.innerText = title;
+                }
                 titleNode.addEventListener("click",evt => {
                     //send resolution message to extension to route
-                    console.log(`intent resolved (window).  selected = ${JSON.stringify(selected)} intent = ${JSON.stringify(request.intent)} contect = ${JSON.stringify(request.context)}`)
+                   // console.log(`intent resolved (window).  selected = ${JSON.stringify(selected)} intent = ${JSON.stringify(request.intent)} contect = ${JSON.stringify(request.context)}`)
                     port.postMessage({
                         method:"resolveIntent",
                         intent:request.intent,
@@ -281,12 +263,13 @@ port.onMessage.addListener(msg => {
                     resolver.style.display = "none";
                 });
             }
-            else {
+          /*  else {
+                
                 rItem.innerText = title;
             
             rItem.addEventListener("click",evt => {
                 //send resolution message to extension to route
-                console.log(`intent resolved (directory).  selected = ${JSON.stringify(selected)} intent = ${JSON.stringify(request.intent)} contect = ${JSON.stringify(request.context)}`)
+               // console.log(`intent resolved (directory).  selected = ${JSON.stringify(selected)} intent = ${JSON.stringify(request.intent)} contect = ${JSON.stringify(request.context)}`)
                     
                 port.postMessage({
                     method:"resolveIntent",
@@ -297,7 +280,7 @@ port.onMessage.addListener(msg => {
                 list.innerHTML = "";
                 resolver.style.display = "none";
             });
-        }
+        }*/
             list.appendChild(rItem);
         });
       }
