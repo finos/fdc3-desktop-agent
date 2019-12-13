@@ -225,7 +225,7 @@ let resolver = null;
         //contents
         request.data.forEach((item) => {
             let selected = item;
-            let data = item.details.directoryData ? item.details.directoryData : item.details;
+            let data = item.details.directoryData;
             let rItem = document.createElement("div");
 
             rItem.className = "item";
@@ -237,7 +237,7 @@ let resolver = null;
             rItem.appendChild(titleNode);
             //title should reflect if this is creating a new window, or loading to an existing one
             if (item.type === "window"){
-                let tab = item.details.sender.tab;
+                let tab = item.details.port.sender.tab;
                // let icon = document.createElement("img");
                // icon.className = "icon"; 
                 if (tab.favIconUrl){

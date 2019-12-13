@@ -57,20 +57,20 @@ chrome.runtime.onConnect.addListener(function(port) {
 
                 mR.json().then(mD => {
                     entry.manifestContent = mD;
-                    port.directoryData = entry;
-                    data.directory = port.directoryData;
+                    //port.directoryData = entry;
+                    data.directory = entry;
                     port.postMessage({name:"environmentData", 
                     data:data});
                 });
             });
         }
         else {
-            port.directoryData = entry;
-            data.directory = port.directoryData;
+           // port.directoryData = entry;
+            data.directory = entry;
             port.postMessage({name:"environmentData", data:data});
         }
     }
-    connected[app_id] = port;
+    connected[app_id] = {port:port, directoryData:entry};
     
     port.onDisconnect.addListener(function(){
         console.log("disconnect",port);
@@ -84,7 +84,7 @@ chrome.runtime.onConnect.addListener(function(port) {
         //iterate through the intents and cleanup the listeners...
         Object.keys(intentListeners).forEach(key => {
             if (intentListeners[key].length > 0){
-                intentListeners[key]= intentListeners[key].filter(item => {return item.sender.tab.id !== port.sender.tab.id; });
+                intentListeners[key]= intentListeners[key].filter(item => {return item !== port.sender.id + port.sender.tab.id; });
             }
         });
     });
@@ -113,7 +113,7 @@ chrome.runtime.onConnect.addListener(function(port) {
             if (!intentListeners[name]){
                 intentListeners[name] = []; 
             }
-            intentListeners[name].push(port);
+            intentListeners[name].push(port.sender.id + port.sender.tab.id);
         }
         else if (msg.method === "broadcast"){
             let channel = connected[(port.sender.id + port.sender.tab.id)].channel ? connected[(port.sender.id + port.sender.tab.id)].channel : "default";
@@ -122,7 +122,7 @@ chrome.runtime.onConnect.addListener(function(port) {
             contexts[channel].unshift(msg.data.context);
             //broadcast to listeners
             contextListeners[channel].forEach(l => {
-                connected[l].postMessage({name:"context", data:msg.data});
+                connected[l].port.postMessage({name:"context", data:msg.data});
             });
         }
         else if (msg.method === "raiseIntent"){
@@ -130,7 +130,9 @@ chrome.runtime.onConnect.addListener(function(port) {
              //add dynamic listeners...
              if (intentListeners[msg.data.intent]) {
                 intentListeners[msg.data.intent].forEach(win => {
-                    r.push({type:"window",details:win});
+                    //look up the details of the window and directory metadata in the "connected" store
+                    let connect = connected[win];
+                    r.push({type:"window",details:connect});
                 });
              }
             //pull intent handlers from the directory
@@ -139,13 +141,14 @@ chrome.runtime.onConnect.addListener(function(port) {
                 if (entry.intents){
                     
                     if (entry.intents.filter(int => {return int.name === msg.data.intent}).length > 0){
-                        //ignore entries already dynamically registered
-                        let list = intentListeners[msg.data.intent];
-                        if (!list || !(list.find(app => {
-                            return app.directoryData.name === entry.name;
-                        }))){
-                            r.push({type:"directory", details:entry});
-                        }
+                        
+                       // let list = intentListeners[msg.data.intent];
+                        //if (!list || !(list.find(app => {
+                        //    return app.directoryData.name === entry.name;
+                        //}))){
+
+                            r.push({type:"directory", details:{directoryData:entry}});
+                        //}
                     }
                 }
             });
@@ -160,8 +163,8 @@ chrome.runtime.onConnect.addListener(function(port) {
                  if (r[0].type === "window"){
                         r[0].details.postMessage({name:"intent", data:msg.data});
                     } else if (r[0].type === "directory"){
-                        console.log("directory" + r[0].details);
-                        fetch(r[0].details.manifest).then(mR => {
+                        console.log("directory ", r[0].details);
+                        fetch(r[0].details.directoryData.manifest).then(mR => {
                             mR.json().then(mD => {
                                 //find the matching intent entry
                                 let intentData = mD.intents.find(i => {
@@ -199,6 +202,22 @@ chrome.runtime.onConnect.addListener(function(port) {
                 else {
                     //show resolver UI
                     // Send a message to the active tab
+                    //sort results alphabetically, with directory entries first (before window entries)
+                    console.log("before sort ", r);
+                    r.sort((a,b)=>{
+                        let aTitle = a.details.directoryData.title;
+                        let bTitle = b.details.directoryData.title;
+                        if (aTitle < bTitle){
+                            return -1;
+                        }
+                        if (aTitle > bTitle){
+                            return 1;
+                        }
+                        else {
+                            return 0;
+                        }
+                    });
+                    console.log("after sort ", r);
                     chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
                         var activeTab = tabs[0];
                         chrome.tabs.sendMessage(activeTab.id, {
@@ -220,16 +239,16 @@ chrome.runtime.onConnect.addListener(function(port) {
             if (msg.selected.type === "window"){
                 let winList = intentListeners[msg.intent] ? intentListeners[msg.intent] : [];
                 let win = winList.find(item => {
-                    return item.sender && item.sender.tab.id === msg.selected.details.sender.tab.id;
+                    return item === msg.selected.details.port.sender.id + msg.selected.details.port.sender.tab.id;
                 });
                 if (win){
-                    win.postMessage({name:"intent", data:{intent:msg.intent, context: msg.context}});    
+                    connected[win].port.postMessage({name:"intent", data:{intent:msg.intent, context: msg.context}});    
                     win.focus();
                 }
                 
             }
             else if (msg.selected.type === "directory"){
-                fetch(msg.selected.details.manifest).then(mR => {
+                fetch(msg.selected.details.directoryData.manifest).then(mR => {
                     mR.json().then(mD => {
                         let start_url = mD.start_url;
                         if (mD.intents){
@@ -265,7 +284,7 @@ chrome.runtime.onConnect.addListener(function(port) {
                         
                             start_url = template;
                         }
-                        let win = window.open(start_url,msg.selected.details.name);
+                        let win = window.open(start_url,msg.selected.details.directoryData.name);
                         win.focus();
                     });
                 });
