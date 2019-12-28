@@ -335,6 +335,7 @@ let resolver = null;
             height:300px;
             overflow:scroll;
             margin:10px
+            font-size:14px;
         }
         
         #resolve-list .item {
