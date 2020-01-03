@@ -1,5 +1,9 @@
 import channels  from "./system-channels";
 
+const dirUrl = "http://www.kolbito.com";
+//const dirUrl = "http://localhost:3000";
+//wait 2 minutes for pending intents to connect
+const pendingIntentTimeout = 2 * 60 * 1000;
 let directory = null;
 //connected end points / apps
 let connected = {};
@@ -25,7 +29,7 @@ channels.forEach(chan => {
     contextListeners[chan.id] = [];
     contexts[chan.id] = [];});
 
-fetch("http://localhost:3000/apps").then(_r =>{
+fetch(`${dirUrl}/apps`).then(_r =>{
                 let r = _r.clone();
                 r.json().then(data => {
                     directory = data;
@@ -34,11 +38,12 @@ fetch("http://localhost:3000/apps").then(_r =>{
 
 //to do: handle disconnects, remove listeners (identify listeners)
 chrome.runtime.onConnect.addListener(function(port) {
-    console.log("connect",port );
+    console.log("connected",port );
     let app_url = new URL(port.sender.url);
     let app_id = (port.sender.id + port.sender.tab.id);
     //look up in directory...
     //to do: disambiguate apps with matching origins...
+    // todo: actually search against the appD service
     let entry = directory.find(ent => {
         if (ent.start_url){
             let ent_url = new URL(ent.start_url);
@@ -114,6 +119,32 @@ chrome.runtime.onConnect.addListener(function(port) {
                 intentListeners[name] = []; 
             }
             intentListeners[name].push(port.sender.id + port.sender.tab.id);
+            //check for pending intents
+            if (pending_intents.length > 0){
+                //first cleanup anything old
+                let n = Date.now();
+                pending_intents = pending_intents.filter(i => {
+                    return n - i.ts < pendingIntentTimeout;
+                });
+                //next, match on url and intent
+                let intent = pending_intents.forEach((pIntent, index) => {
+                    //removing trainling slashes from the sender.url...
+                    let pUrl = port.sender.url;
+                    if (pUrl.charAt(pUrl.length -1) === "/"){
+                        pUrl = pUrl.substr(0,port.sender.url.length -1);
+                    }
+                    if (pIntent.url === pUrl && pIntent.intent === name){
+                        console.log("applying pending intent", pIntent);    
+                        //refactor with other instances of this logic
+                        port.postMessage({name:"intent", data:{intent:name, context: pIntent.context}});    
+                        bringToFront(port.tab); 
+                        //remove the applied intent
+                        pending_intents.splice(index,1);
+                    }
+                });
+
+                
+            }
         }
         else if (msg.method === "broadcast"){
             let channel = connected[(port.sender.id + port.sender.tab.id)].channel ? connected[(port.sender.id + port.sender.tab.id)].channel : "default";
@@ -128,7 +159,11 @@ chrome.runtime.onConnect.addListener(function(port) {
         else if (msg.method === "raiseIntent"){
             let r = [];
             //pull intent handlers from the directory
-            fetch(`http://localhost:3000/apps/search?intent=${msg.data.intent}`).then(_r =>{
+            let ctx = "";
+            if (msg.data.context){
+                ctx = msg.data.context.type;
+            }
+            fetch(`${dirUrl}/apps/search?intent=${msg.data.intent}&context=${ctx}`).then(_r =>{
                 //add dynamic listeners...
                 if (intentListeners[msg.data.intent]) {
                     intentListeners[msg.data.intent].forEach(win => {
@@ -157,38 +192,45 @@ chrome.runtime.onConnect.addListener(function(port) {
                          //dedupe window and directory items
                          if (r[0].type === "window"){
                                 r[0].details.port.postMessage({name:"intent", data:msg.data});
-                                
+                                bringToFront(r[0].details.port);
                             } else if (r[0].type === "directory"){
                                 console.log("directory ", r[0].details);
+                                let start_url = r[0].details.directoryData.start_url;
                                 fetch(r[0].details.directoryData.manifest).then(mR => {
                                     mR.json().then(mD => {
-                                        //find the matching intent entry
-                                        let intentData = mD.intents.find(i => {
-                                            return i.type === msg.data.context.type && i.intent === msg.data.intent;
-                                        });
-                                        //set paramters
-                                        let ctx = msg.data.context;
-                                        let params = {};
-                                        Object.keys(mD.params).forEach(key =>{ 
-                                            let param = mD.params[key];
-                                            if (ctx.type === param.type){
-                                                if (param.key){
-                                                    params[key] = ctx[param.key];
+                                       //if there is metadata inthe manifest that routes to a different URL for the intent, use that
+                                        if (mD.intents){
+                                            //find the matching intent entry
+                                            let intentData = mD.intents.find(i => {
+                                                return i.type === msg.data.context.type && i.intent === msg.data.intent;
+                                            });
+                                            //set paramters
+                                            let ctx = msg.data.context;
+                                            let params = {};
+                                            Object.keys(mD.params).forEach(key =>{ 
+                                                let param = mD.params[key];
+                                                if (ctx.type === param.type){
+                                                    if (param.key){
+                                                        params[key] = ctx[param.key];
+                                                    }
+                                                    else if (param.id){
+                                                        params[key]  = ctx.id[param.id]; 
+                                                    }
                                                 }
-                                                else if (param.id){
-                                                    params[key]  = ctx.id[param.id]; 
-                                                }
-                                            }
-                                        });
-                                        //eval the url
-                                        let template = mD.templates[intentData.template];
-                                        Object.keys(params).forEach(key => {
-                                            template = template.replace("${" + key +"}",params[key]);
-        
-                                        });
-                                       
-                                        let start_url = template;
+                                            });
+                                            //eval the url
+                                            let template = mD.templates[intentData.template];
+                                            Object.keys(params).forEach(key => {
+                                                template = template.replace("${" + key +"}",params[key]);
+            
+                                            });
+                                        
+                                            start_url = template;
+                                        }
                                         let win = window.open(start_url,msg.data.name);
+                                        console.log("new window",win);
+                                        //send the context - if the default start_url was used...
+                                        //get the window/tab...
                                         win.focus();
                                         
                                     });
@@ -214,6 +256,7 @@ chrome.runtime.onConnect.addListener(function(port) {
                                 }
                             });
                             console.log("after sort ", r);
+                
                             chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
                                 var activeTab = tabs[0];
                                 chrome.tabs.sendMessage(activeTab.id, {
@@ -221,6 +264,7 @@ chrome.runtime.onConnect.addListener(function(port) {
                                     "data":r, 
                                     "intent":msg.data.intent,
                                     "context":msg.data.context});
+                                
                             });
                         }
                         
@@ -242,7 +286,7 @@ chrome.runtime.onConnect.addListener(function(port) {
                 });
                 if (win){
                     connected[win].port.postMessage({name:"intent", data:{intent:msg.intent, context: msg.context}});    
-                    win.focus();
+                    bringToFront(win); 
                 }
                 
             }
@@ -284,7 +328,13 @@ chrome.runtime.onConnect.addListener(function(port) {
                             start_url = template;
                         }
                         let win = window.open(start_url,msg.selected.details.directoryData.name);
-                        win.focus();
+                        
+                        //set pending intent for the url...
+                        setPending(start_url, msg.intent, msg.context);
+                        //keep array of pending, id by url,  store intent & context, timestamp
+                        //when a new window connects, throw out anything more than 2 minutes old, then match on url
+                        //when a match is found, remove match from the list, send intent w/context, and bring to front
+                        
                     });
                 });
             }
@@ -331,3 +381,42 @@ chrome.browserAction.onClicked.addListener(function(tab) {
       chrome.tabs.sendMessage(activeTab.id, {"message": "clicked_browser_action"});
     });
   });
+
+
+  let pending_intents = [];
+  //keep array of pending, id by url,  store intent & context, timestamp
+  //when a new window connects, throw out anything more than 2 minutes old, then match on url
+  //when a match is found, remove match from the list, send intent w/context, and bring to front
+ 
+  const setPending =function(url, intent, context){
+    pending_intents.push({ts:Date.now(), url:url, intent:intent, context:context});
+  };
+
+  //util functions (move to module)
+  const bringToFront = function(id){
+    return new Promise((resolve, reject) => {
+        let _tab = null;
+        if (id.windowId && id.id){
+            _tab = id;
+        }
+        else {
+            let c = connected[id];
+            if (c && c.port && c.port.sender){
+                _tab = c.port.sender.tab;
+            }
+        }
+        if (_tab){
+            
+            chrome.tabs.update(_tab.id,{"active":true,"highlighted":true},function (tab){
+                console.log("Completed updating tab .." + JSON.stringify(tab));
+                });
+            chrome.windows.update(_tab.windowId, {"focused":true});
+            resolve(_tab);
+        }
+        else  {
+            let message = `bringToFront: no connected tab found for id '${id}'`;
+            console.warn(message);
+            reject({"message":message});
+        }
+    });
+}
