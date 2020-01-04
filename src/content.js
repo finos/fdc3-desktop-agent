@@ -119,7 +119,11 @@ port.onMessage.addListener(msg => {
         //eval the url
         let template = contentManifest.templates[contextMeta.template];
         Object.keys(params).forEach(key => {
-            template = template.replace("${" + key +"}",params[key]);
+            let sub = "${" + key + "}";
+            let val = params[key];
+            while (template.indexOf(sub) > -1){
+                template = template.replace(sub,val);
+            }
 
         });
         //don't reload if they are the same...
@@ -169,7 +173,11 @@ port.onMessage.addListener(msg => {
             //eval the url
             let template = contentManifest.templates[intentData.template];
             Object.keys(params).forEach(key => {
-                template = template.replace("${" + key +"}",params[key]);
+                let sub = "${" + key + "}";
+                let val = params[key];
+                while (template.indexOf(sub) > -1){
+                    template = template.replace(sub,val);
+                }
 
             });
             //don't reload if they are the same...
@@ -225,11 +233,11 @@ let resolver = null;
         //contents
         request.data.forEach((item) => {
             let selected = item;
-            let data = item.details.directoryData;
+            let data = item.details.directoryData ? item.details.directoryData : null;
             let rItem = document.createElement("div");
 
             rItem.className = "item";
-            let title = data.title;
+            let title = data ? data.title : "Untitled";
             let iconNode = document.createElement("img");
             iconNode.className = "icon";
             rItem.appendChild(iconNode);
@@ -259,7 +267,7 @@ let resolver = null;
                 });
             }
             else {
-                if (data.icons && data.icons.length > 0){
+                if (data && data.icons && data.icons.length > 0){
                     iconNode.src = data.icons[0].icon;
                 }
             }
@@ -268,7 +276,7 @@ let resolver = null;
                     titleNode.innerText = title;
                 }
                 if (titleNode.title.length === 0){
-                    titleNode.title = data.start_url;
+                    titleNode.title = data ? data.start_url : (tab ? tab.title : "Untitled");
                 }
                 
             }

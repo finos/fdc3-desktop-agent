@@ -36,7 +36,15 @@ fetch(`${dirUrl}/apps`).then(_r =>{
                 });
 });
 
-//to do: handle disconnects, remove listeners (identify listeners)
+/*
+    When an app (new window/tab) connects to the FDC3 service:
+        - determine if it has a corresponding entry in the app directory
+            - if it is in appD, fetch it's appD entry plus manifest
+        - add the window reference plus any appD data to the "connected" dictionary
+        - add event listeners for the app
+        - send environment data to the app (directory data, channels, etc)
+
+*/
 chrome.runtime.onConnect.addListener(function(port) {
     console.log("connected",port );
     let app_url = new URL(port.sender.url);
@@ -136,8 +144,8 @@ chrome.runtime.onConnect.addListener(function(port) {
                     if (pIntent.url === pUrl && pIntent.intent === name){
                         console.log("applying pending intent", pIntent);    
                         //refactor with other instances of this logic
-                        port.postMessage({name:"intent", data:{intent:name, context: pIntent.context}});    
-                        bringToFront(port.tab); 
+                        port.postMessage({"name":"intent", "data":{"intent":pIntent.intent, "context": pIntent.context}});    
+                        bringToFront(port.sender.tab); 
                         //remove the applied intent
                         pending_intents.splice(index,1);
                     }
@@ -221,13 +229,16 @@ chrome.runtime.onConnect.addListener(function(port) {
                                             //eval the url
                                             let template = mD.templates[intentData.template];
                                             Object.keys(params).forEach(key => {
-                                                template = template.replace("${" + key +"}",params[key]);
-            
+                                                let sub = "${" + key + "}";
+                                                let val = params[key];
+                                                while (template.indexOf(sub) > -1){
+                                                    template = template.replace(sub,val);
+                                                }
                                             });
                                         
                                             start_url = template;
                                         }
-                                        let win = window.open(start_url,msg.data.name);
+                                        let win = window.open(start_url,"_blank");
                                         console.log("new window",win);
                                         //send the context - if the default start_url was used...
                                         //get the window/tab...
@@ -243,8 +254,8 @@ chrome.runtime.onConnect.addListener(function(port) {
                             //sort results alphabetically, with directory entries first (before window entries)
                             console.log("before sort ", r);
                             r.sort((a,b)=>{
-                                let aTitle = a.details.directoryData.title;
-                                let bTitle = b.details.directoryData.title;
+                                let aTitle = a.details.directoryData ? a.details.directoryData.title : a.details.port.sender.url;
+                                let bTitle = b.details.directoryData ? b.details.directoryData.title : b.details.port.sender.url;
                                 if (aTitle < bTitle){
                                     return -1;
                                 }
@@ -321,13 +332,17 @@ chrome.runtime.onConnect.addListener(function(port) {
                             //generate the url
                             let template = mD.templates[intentData.template];
                             Object.keys(params).forEach(key => {
-                                template = template.replace("${" + key +"}",params[key]);
-
+                                let sub = "${" + key + "}";
+                                let val = params[key];
+                                while (template.indexOf(sub) > -1){
+                                    template = template.replace(sub,val);
+                                }
+                          
                             });
                         
                             start_url = template;
                         }
-                        let win = window.open(start_url,msg.selected.details.directoryData.name);
+                        let win = window.open(start_url,"_blank");
                         
                         //set pending intent for the url...
                         setPending(start_url, msg.intent, msg.context);
