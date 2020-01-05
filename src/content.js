@@ -266,7 +266,7 @@ let resolver = null;
                 //titleNode = document.createElement("span");
                 titleNode.id = "title-" + tab.id;
                 titleNode.innerText = title;
-                titleNode.title = tab.url;
+                titleNode.title = `${title} (${tab.url})`;
                 let query = "#title-" + tab.id;
                 
                 //async get the window title
@@ -274,6 +274,7 @@ let resolver = null;
                     let titles =  list.querySelectorAll(query);
                     if (titles.length > 0 && t.length > 0){
                         titles[0].innerText = t;
+                        titles[0].title = `${t} (${tab.url})`;
                     }
                 });
             }
