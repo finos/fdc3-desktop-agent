@@ -225,8 +225,19 @@ let resolver = null;
             document.body.appendChild(resolver);
         }
         resolver.style.display = "block";
+        //resolve the intent name to the display name for the intent - by looking it up in the data response
+        let dName = null;
+        request.data.forEach(item => {
+            if (!dName && Array.isArray(item.details.directoryData.intents)){
+                item.details.directoryData.intents.forEach(intent => {
+                    if(intent.name === request.intent){
+                        dName = intent.display_name;
+                    }
+                });
+            }
+        } );
         let header = resolver.shadowRoot.querySelectorAll("#resolve-header")[0];
-        header.innerText = `Choose an App for Intent '${request.intent}'`;
+        header.innerText = `Intent '${(dName ? dName : request.intent)}'`;
         let list = resolver.shadowRoot.querySelectorAll("#resolve-list")[0];
         list.innerHTML = "";
 
@@ -338,12 +349,23 @@ let resolver = null;
             text-align: center;
             padding-top: 10px;
         }
-            
+        
+        #resolve-subheader {
+            height:20px;
+            color:#eee;
+            font-size: 16px;
+            width: 100%;
+            text-align: center;
+        }
         #resolve-list {
             height:300px;
             overflow:scroll;
-            margin:10px
+            margin:10px;
             font-size:14px;
+            border-radius: 3px;
+            margin: 3px;
+            border: #333;
+            background-color: #555;
         }
         
         #resolve-list .item {
@@ -368,6 +390,10 @@ let resolver = null;
         let header = document.createElement('div');
         header.id = "resolve-header";
         wrapper.appendChild(header);
+        let subheader = document.createElement('div');
+        subheader.id = "resolve-subheader";
+        subheader.innerText = "choose an app";
+        wrapper.appendChild(subheader);
         let list = document.createElement('div');
         list.id = "resolve-list";
         wrapper.appendChild(list);
