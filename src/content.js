@@ -373,6 +373,7 @@ let resolver = null;
             flexFlow:row;
             height:20px;
             padding:3px;
+            overflow:hidden;
         }
 
 
