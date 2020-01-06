@@ -7,6 +7,8 @@ let pending_intents = [];
 let contexts = {default:[]};
 //context listeners
 let contextListeners = {default:[]};
+//intent listeners (dictionary keyed by intent name)
+let intentListeners = {};
 
 //track tab channel membership (apps can disconnect and reconnect, but tabs and channel membership persist)
 let tabChannels = {};
@@ -24,6 +26,33 @@ const dropContextListeners = (id) => {
     Object.keys(contextListeners).forEach(channel =>{
         contextListeners[channel] = contextListeners[channel].filter(item => {return item !== id; });
     }); 
+};
+
+
+const setIntentListener = (intent, id) => {
+    if (!intentListeners[intent]){
+        intentListeners[intent] = []; 
+    }
+    intentListeners[intent].push(id); 
+};
+
+const getIntentListeners = (intent) => {
+    if (!intent) {
+        return intentListeners;
+    }
+    else {
+        return intentListeners[intent] ? intentListeners[intent] : [];
+    }
+};
+
+//removes all intent listeners for an endpoiont
+const dropIntentListeners = (port) => {
+    //iterate through the intents and cleanup the listeners...
+    Object.keys(intentListeners).forEach(key => {
+        if (intentListeners[key].length > 0){
+            intentListeners[key]= intentListeners[key].filter(item => {return item !== port.sender.id + port.sender.tab.id; });
+        }
+    });
 };
 
 const getTabChannel = (id) => {
@@ -76,7 +105,7 @@ const setPendingIntent =function(url, intent, context){
 const addIntentListener = (msg, port) => {
     return new Promise((resolve, reject) =>{
         let name = msg.data.intent;
-       utils.setIntentListener(name, port.sender.id + port.sender.tab.id)
+       setIntentListener(name, port.sender.id + port.sender.tab.id)
         //check for pending intents
 
         if (pending_intents.length > 0){
@@ -134,7 +163,7 @@ const raiseIntent = (msg, port) => {
         }
         fetch(`${utils.directoryUrl}/apps/search?intent=${msg.data.intent}&context=${ctx}`).then(_r =>{
             //add dynamic listeners...
-            let intentListeners = utils.getIntentListeners(msg.data.intent);
+            let intentListeners = getIntentListeners(msg.data.intent);
             if (intentListeners) {
                 intentListeners.forEach(id => {
                     //look up the details of the window and directory metadata in the "connected" store
@@ -258,7 +287,7 @@ const resolveIntent = (msg, port) => {
     return new Promise((resolve, reject) => {
 //find the app to route to
 if (msg.selected.type === "window"){
-    let winList = utils.getIntentListeners(msg.intent);
+    let winList = getIntentListeners(msg.intent);
     let win = winList.find(item => {
         return item === msg.selected.details.port.sender.id + msg.selected.details.port.sender.tab.id;
     });

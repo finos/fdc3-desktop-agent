@@ -3,8 +3,7 @@ import channels from "./system-channels";
 
 //connected end points / apps
 let connected = {};
-//intent listeners (dictionary keyed by intent name)
-let intentListeners = {};
+
 
 const getSystemChannels = () => {
     return channels;
@@ -30,31 +29,6 @@ const dropConnected = (id)=> {
     connected[id] = null;
 };
 
-const setIntentListener = (intent, id) => {
-    if (!intentListeners[intent]){
-        intentListeners[intent] = []; 
-    }
-    intentListeners[intent].push(id); 
-};
-
-const getIntentListeners = (intent) => {
-    if (!intent) {
-        return intentListeners;
-    }
-    else {
-        return intentListeners[intent] ? intentListeners[intent] : [];
-    }
-};
-
-//removes all intent listeners for an endpoiont
-const dropIntentListeners = (port) => {
-    //iterate through the intents and cleanup the listeners...
-    Object.keys(intentListeners).forEach(key => {
-        if (intentListeners[key].length > 0){
-            intentListeners[key]= intentListeners[key].filter(item => {return item !== port.sender.id + port.sender.tab.id; });
-        }
-    });
-};
 
 
 const bringToFront = (id) => {
@@ -87,17 +61,6 @@ const bringToFront = (id) => {
 
 const directoryUrl = "http://www.kolbito.com";
 
-/*export default{
-    directoryUrl:,
-    getSystemChannels
-    setConnected:setConnected,
-    getConnected:getConnected,
-    dropConnected:dropConnected,
-    setIntentListener:setIntentListener,
-    getIntentListeners:getIntentListeners,
-    dropIntentListeners:dropIntentListeners,
-    bringToFront:bringToFront
-};*/
 
 export default{
     directoryUrl,
@@ -105,8 +68,5 @@ export default{
     setConnected,
     getConnected,
     dropConnected,
-    setIntentListener,
-    getIntentListeners,
-    dropIntentListeners,
     bringToFront
 };

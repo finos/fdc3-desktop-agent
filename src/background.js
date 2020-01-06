@@ -105,33 +105,7 @@ chrome.runtime.onConnect.addListener(function(port) {
             default:
                 console.error("no handler found for method", msg.method);
         }
-      /*  if (msg.method === "open"){
-            return listeners.open(msg, port).then(r => {return true;});
-        }
-        else if (msg.method === "addContextListener"){
 
-            return listeners.open(msg, port).then(r => {return true;});
-        }
-        else if (msg.method === "addIntentListener"){
-           return listeners.addIntentListener(msg, port).then(r => {return true;});
-        }
-        else if (msg.method === "broadcast"){
-            return listeners.broadcast(msg, port).then(r => {return true;});
-        }
-        else if (msg.method === "raiseIntent"){
-           return listeners.raiseIntent(msg, port).then(r => {return true;}); 
-        }
-        else if (msg.method === "resolveIntent"){
-            return listeners.resolveIntent(msg, port).then(r => {return true;});
-        }
-        else if (msg.method === "joinChannel"){
-            return listeners.joinChannel(msg, port).then(r => {return true;});
-           
-        }
-        else if (msg.method === "getTabTitle"){
-            return listeners.getTabTitle(msg, port).then(r => {return true;});
-        }
-        */
     });
 });
 
@@ -142,6 +116,6 @@ chrome.browserAction.onClicked.addListener(function(tab) {
       var activeTab = tabs[0];
       chrome.tabs.sendMessage(activeTab.id, {"message": "clicked_browser_action"});
     });
-  });
+});
 
 
