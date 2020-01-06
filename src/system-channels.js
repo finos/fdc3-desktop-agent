@@ -1,4 +1,4 @@
-module.exports =  [
+export default[
     {"id":"red","type":"system","visualIdentity":
         {"color":"#da2d2d",
         "color2":"#9d0b0b",

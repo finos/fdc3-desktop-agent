@@ -1,5 +1,13 @@
 import channels from "./system-channels";
 
+ //inject the FDC3 API
+ let s = document.createElement('script');
+ s.src = chrome.extension.getURL('api.js');
+ s.onload = function() {
+     this.parentNode.removeChild(this);
+ };
+ (document.head||document.documentElement).appendChild(s);
+
 //establish comms with the background script 
  let port = chrome.runtime.connect({name: "fdc3"});
 
@@ -24,13 +32,6 @@ function getTabTitle(tabId){
     });  
 }
 
- //inject the FDC3 API
- let s = document.createElement('script');
- s.src = chrome.extension.getURL('api.js');
- s.onload = function() {
-     this.parentNode.removeChild(this);
- };
- (document.head||document.documentElement).appendChild(s);
 
  
  //listen for FDC3 events
