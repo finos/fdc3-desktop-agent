@@ -1,0 +1,161 @@
+#autoComplete_wrapper {
+    position: relative;
+    display: inline-block;
+  }
+  
+  #autoComplete {
+    position: relative;
+    padding: 3px;
+    margin:3px 8px 0px 8px;
+    height: 25px;
+    width: 160px;
+    font-size: 14px;
+    outline: none;
+    border-radius: 12px;
+    border: 1px solid#0033a0;
+    caret-color: #0033a0;
+    color: rgba(255, 255, 255, 0);
+    transition: all 0.4s ease;
+    -webkit-transition: all -webkit-transform 0.4s ease;
+    text-overflow: ellipsis;
+  }
+  
+  #autoComplete::placeholder {
+    color: rgba(122, 122, 122, 1);
+    transition: all 0.3s ease;
+  }
+  
+  #autoComplete:hover::placeholder {
+    color: rgba(122, 122, 122, 0.3);
+    transition: all 0.3s ease;
+    -webkit-transition: all -webkit-transform 0.3s ease;
+  }
+  
+  #autoComplete:focus::placeholder {
+   /* padding: 1px 3px;*/
+    font-size: 14px;
+    color: #aaa;
+    transition: all 0.3s ease;
+    -webkit-transition: all -webkit-transform 0.3s ease;
+  }
+  
+  #autoComplete::selection {
+    color: transparent;
+  }
+  
+  #autoComplete:focus::selection {
+    color: #fff;
+    background-color: #0033a0;
+  }
+  
+  #autoComplete:hover {
+  
+    color: #0033a0; 
+   transition: all 0.3s ease;
+    -webkit-transition: all -webkit-transform 0.3s ease;
+  }
+  
+  #autoComplete:focus {
+    color: #0033a0;
+    width: 160px;
+    margin:3px 8px 0px 8px;
+    transition: all 0.4s ease;
+    box-shadow: rgba(255, 122, 122, 0.1) 0px 0px 20px 5px;
+  }
+  
+  #autoComplete_list {
+    position: fixed;
+    z-index: 1000;
+    padding: 0;
+    left: 0;
+    right: 0;
+    margin-top: 0;
+    margin-left: auto;
+    margin-right: auto;
+    width: 160px;
+    transition: all 0.3s ease-in-out;
+    -webkit-transition: all -webkit-transform 0.1s ease;
+  }
+  
+  .autoComplete_result {
+    margin: 1px auto;
+    padding: 3px;
+    width:160px;
+    border: 1px solid #e3e3e3;
+    list-style: none;
+    text-align: left;
+    font-size: 14px;
+    color: rgb(123, 123, 123);
+    transition: all 0.1s ease-in-out;
+    background-color: #fff;
+  }
+  
+  .autoComplete_result::selection {
+    color: rgba(#ffffff, 0);
+    background-color: rgba(#ffffff, 0);
+  }
+  
+  .autoComplete_result:last-child {
+    border-radius: 0 0 12px 12px;
+  }
+  
+  .autoComplete_result:hover {
+    cursor: pointer;
+    background-color: rgba(255, 248, 248, 0.9);
+    border: 1px solid#0033a0;
+ /*   border-right: 1px solid #0033a0;
+    border-top: 2px solid transparent;
+    border-bottom: 2px solid transparent;*/
+  }
+  
+  .autoComplete_result:focus {
+    outline: none;
+    background-color: rgba(255, 248, 248, 0.9);
+    border: 1px solid #0033a0;
+   /* border-right: 2px solid #0033a0;
+    border-top: 2px solid transparent;
+    border-bottom: 2px solid transparent;*/
+  }
+  
+  .autoComplete_highlighted {
+    opacity: 1;
+    color: #0033a0;
+    font-weight: bold;
+  }
+  
+  .autoComplete_highlighted::selection {
+    color: rgba(#ffffff, 0);
+    background-color: rgba(#ffffff, 0);
+  }
+  
+  .autoComplete_selected {
+    cursor: pointer;
+    background-color: rgba(255, 248, 248, 0.9);
+    border: 1px solid #0033a0;
+   /* border-right: 2px solid #0033a0;
+    border-top: 2px solid transparent;
+    border-bottom: 2px solid transparent;*/
+  }
+  
+
+  
+   /* #autoComplete:focus {
+      width: 160px;
+      transition: all 0.4s ease;
+      margin:3px 8px 0px 8px;
+
+    }*/
+  
+    .autoComplete_result:first-child {
+      border-radius: 12px 12px 0 0;
+    }
+  
+    .autoComplete_result:last-child {
+      border-radius: 0 0 12px 12px;
+    }
+  
+    .autoComplete_result:only-child {
+      border-radius: 12px;
+    }
+  
+  
