@@ -1,2 +1,58 @@
-<fdc3-channel-picker></fdc3-channel-picker>
-<script src="popup.js"></script>
+<html>
+    <head>
+        <link rel="stylesheet" href="./autoComplete.css">
+        <style>
+     
+ 
+.header {
+    padding:3px;
+    width:100%;
+    text-align: center;
+}
+
+.header .icon {
+    width:20px;
+    height:20px;
+    margin-right:3px;
+}
+
+
+.header .title {
+    font-size:16px;
+    font-family: Arial, Helvetica, sans-serif;
+    vertical-align: super;
+}
+
+.header .subtitle {
+    font-size:10px;
+    font-family: Arial, Helvetica, sans-serif; 
+}
+
+#button-bar {
+    padding-left:10px;
+    padding-bottom:3px;
+    
+}
+            </style>
+    </head>
+    <body>
+        <div class="header">
+            <div class="content">            
+                <img class="icon" src="icon.png"><span class="title">FDC3</span>
+                <div class="subtitle">desktop agent</div>
+            </div>
+            
+        </div>
+        <div class="row" id="button-bar">
+            <fdc3-channel-picker></fdc3-channel-picker>
+        </div>
+        <div class="row">
+            <input id="autoComplete" tabindex="1"> 
+        </div>
+    </body>
+    <script src="popup.js"></script>
+</html>
+
+
+
+

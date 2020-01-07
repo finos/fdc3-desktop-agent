@@ -25,7 +25,7 @@ module.exports = {
   },
   plugins: [
     new CopyPlugin([
-      { from: './src/*.+(html|png|json)', 
+      { from: './src/*.+(html|png|json|css|svg)', 
         to: path.resolve(__dirname, 'dist'),
         flatten:true
     }

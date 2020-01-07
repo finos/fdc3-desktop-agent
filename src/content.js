@@ -219,6 +219,9 @@ let resolver = null;
             currentChannel = request.channel;
             port.postMessage({method:"joinChannel", "data": {channel:request.channel}}); 
         }
+        else if (request.message === "popup-open"){
+            port.postMessage({method:"open", "data": {name:request.name}}); 
+        }
   
       else if (request.message === "intent_resolver"){
         if (! resolver){

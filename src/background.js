@@ -73,7 +73,7 @@ chrome.runtime.onConnect.addListener(function(port) {
         listeners.dropContextListeners(id);
         
         //cleanup the listeners...
-        utils.dropIntentListeners(port);
+        listeners.dropIntentListeners(port);
     });
     port.onMessage.addListener(function(msg) {
        
