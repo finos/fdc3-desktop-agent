@@ -28,6 +28,7 @@ window.fdc3 = {
 
     raiseIntent:function(intent, context){
         return new Promise((resolve, reject) => {
+
             document.dispatchEvent(new CustomEvent('FDC3:raiseIntent', {
                 detail:{
                     intent:intent,
