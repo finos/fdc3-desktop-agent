@@ -3,6 +3,7 @@ import utils from "./utils";
 //wait 2 minutes for pending intents to connect
 const pendingIntentTimeout = 2 * 60 * 1000;
 let pending_intents = [];
+let pending_contexts = [];
 //running contexts 
 let contexts = {default:[]};
 //context listeners
@@ -71,8 +72,12 @@ const open = (msg, port) => {
                         
                     });
                 });*/
+                if (msg.data.context){
+                    setPendingContext(r.start_url, msg.data.context);
+                }
                 window.open(r.start_url,"_blank");
                 //todo: handle context, templates, etc
+
                 //todo: return app handle object with tab...
                 //todo: handle no appd and other error conditions
                 resolve(true);
@@ -88,6 +93,33 @@ const addContextListener = (msg, port) => {
         let c = utils.getConnected(port.sender.id + port.sender.tab.id);
         let channel = c.channel ? c.channel : "default";
         contextListeners[channel].push((port.sender.id + port.sender.tab.id));
+        
+        if (pending_contexts.length > 0){
+            //first cleanup anything old
+            let n = Date.now();
+            pending_contexts = pending_contexts.filter(i => {
+                return n - i.ts < pendingIntentTimeout;
+            });
+            //next, match on url and intent
+            console.log("pending contexts", pending_contexts);
+            pending_contexts.forEach((pContext, index) => {
+                //removing trainling slashes from the sender.url...
+                let pUrl = port.sender.url;
+                if (pUrl.charAt(pUrl.length -1) === "/"){
+                    pUrl = pUrl.substr(0,port.sender.url.length -1);
+                }
+                if (pContext.url === pUrl){
+                    console.log("applying pending context", pContext);    
+                    //refactor with other instances of this logic
+                    port.postMessage({"name":"context", "data":{"context": pContext.context}});    
+                    utils.bringToFront(port.sender.tab); 
+                    //remove the applied intent
+                    pending_intents.splice(index,1);
+                }
+            });
+    
+            
+        }
         resolve(true);
     });
    
@@ -101,6 +133,10 @@ const addContextListener = (msg, port) => {
 const setPendingIntent =function(url, intent, context){
   pending_intents.push({ts:Date.now(), url:url, intent:intent, context:context});
 };
+
+const setPendingContext =function(url, context){
+    pending_contexts.push({ts:Date.now(), url:url, context:context});
+  };
 
 const addIntentListener = (msg, port) => {
     return new Promise((resolve, reject) =>{
@@ -198,7 +234,7 @@ const raiseIntent = (msg, port) => {
                             let start_url = r[0].details.directoryData.start_url;
                             fetch(r[0].details.directoryData.manifest).then(mR => {
                                 mR.json().then(mD => {
-                                   //if there is metadata inthe manifest that routes to a different URL for the intent, use that
+                                   //if there is metadata in the manifest that routes to a different URL for the intent, use that
                                     if (mD.intents){
                                         //find the matching intent entry
                                         let intentData = mD.intents.find(i => {

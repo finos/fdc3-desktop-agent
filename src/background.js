@@ -82,7 +82,7 @@ chrome.runtime.onConnect.addListener(function(port) {
                 return listeners.open(msg, port).then(r => {return true;});  
                 break;
             case "addContextListener":
-                return listeners.open(msg, port).then(r => {return true;});
+                return listeners.addContextListener(msg, port).then(r => {return true;});
                 break;
             case "addIntentListener":
                 return listeners.addIntentListener(msg, port).then(r => {return true;});
