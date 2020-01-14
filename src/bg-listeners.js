@@ -381,6 +381,46 @@ const joinChannel = (msg, port) => {
     });
 };
 
+
+const findIntent = (msg, port) => {
+    return new Promise((resolve, reject) => {
+        let intent = msg.intent;
+        let context = msg.context;
+        if (intent){
+            let url = `${utils.directoryUrl}/apps/search?intent=${intent}`;
+            if (context){
+                //only use type
+                if (typeof context === "object"){
+                    context = context.type;
+                }
+                url+= `&context=${context}`;
+            }
+        
+            fetch(url).then(_r =>{
+                _r.json().then(j => {resolve(j);});
+            });
+        }
+        else {
+            reject("no intent");
+        }
+    });
+};
+
+const findIntentsByContext = (msg, port) => {
+    return new Promise((resolve, reject) => {
+        let context = msg.context;    
+        if (context){
+            let url = `${utils.directoryUrl}/apps/search?context=${context}`;   
+            fetch(url).then(_r =>{
+                _r.json().then(j => {resolve(j);});
+            });
+        }
+        else {
+            reject("no context");
+        }
+    });
+};
+
 const getTabTitle = (msg, port) => {
     return new Promise((resolve, reject) => {
         let id = msg.tabId;
@@ -404,5 +444,7 @@ export default{
     resolveIntent,
     joinChannel,
     getTabTitle,
-    getTabChannel
+    getTabChannel,
+    findIntent,
+    findIntentsByContext
 };

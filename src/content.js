@@ -61,8 +61,96 @@ document.addEventListener('FDC3:joinChannel',e => {
 });
 
 document.addEventListener('FDC3:getSystemChannels',e => {
-    document.dispatchEvent(new CustomEvent("FDC3:systemChannels", {detail:{data: systemChannels}})); 
+    document.dispatchEvent(new CustomEvent("FDC3:returnSystemChannels", {detail:{data: channels}})); 
 });
+
+document.addEventListener('FDC3:findIntent',e => {
+// returns a single AppIntent:
+// {
+//     intent: { name: "StartChat", displayName: "Chat" },
+//     apps: [{ name: "Skype" }, { name: "Symphony" }, { name: "Slack" }]
+// }
+    const intent = e.detail.intent;
+    const context = e.detail.context;
+
+    let r = {intent:{},
+                apps:[]};
+    port.onMessage.addListener(msg => {
+        if (msg.name === "returnFindIntent" && msg.intent === intent && msg.context === context){
+
+            r.apps = msg.data;
+            let intnt = r.apps[0].intents.filter(i => {return i.name === intent;});
+            if (intnt.length > 0){
+                r.intent.name = intnt[0].name;
+                r.intent.displayName = intnt[0].display_name;
+            }
+            
+            //set the intent metadata...
+            document.dispatchEvent(new CustomEvent("FDC3:returnFindIntent", {detail:{data: r}})); 
+                    
+        }
+    });
+    //retrieve apps for the intent
+    port.postMessage({method:"findIntent", "intent":intent,"context":e.detail.context});
+    
+});
+
+
+document.addEventListener('FDC3:findIntentsByContext',e => {
+// returns, for example:
+// [{
+//     intent: { name: "StartCall", displayName: "Call" },
+//     apps: [{ name: "Skype" }]
+// },
+// {
+//     intent: { name: "StartChat", displayName: "Chat" },
+//     apps: [{ name: "Skype" }, { name: "Symphony" }, { name: "Slack" }]
+// }];
+        const context = e.detail.context;
+    
+        //{intent:{},
+                 //   apps:[]};
+        port.onMessage.addListener(msg => {
+            if (msg.name === "returnFindIntentsByContext" && msg.context === context){
+    
+                let r = [];
+                let d = msg.data;
+                let found = {};
+                let intents = [];
+                d.forEach(item => {
+                    item.intents.forEach(intent => {
+                        if (!found[intent.name]){
+                            intents.push({name:intent.name,displayName:intent.display_name});
+                            found[intent.name] = [item];
+                        }
+                        else {
+                            found[intent.name].push(item);
+                        }
+                    });
+                });
+
+                intents.forEach(intent =>{
+                    let entry = {intent:intent,apps:found[intent.name]};
+
+                    r.push(entry);
+                });
+                //get all apps for each distinct intent
+/*                r.apps = msg.data;
+                let intnt = r.apps[0].intents.filter(i => {return i.name === intent;});
+                if (intnt.length > 0){
+                    r.intent.name = intnt[0].name;
+                    r.intent.displayName = intnt[0].display_name;
+                }*/
+                
+                //set the intent metadata...
+                document.dispatchEvent(new CustomEvent("FDC3:returnFindIntentsByContext", {detail:{data: r}})); 
+                        
+            }
+        });
+        //retrieve apps for the intent
+        port.postMessage({method:"findIntentsByContext", "context":e.detail.context});
+        
+    });
 
 port.onMessage.addListener(msg => {
     if (msg.name === "environmentData"){

@@ -60,14 +60,58 @@ window.fdc3 = {
         }));
     },
 
-    getSystemChannels: function(){
+    findIntent: function(intent, context){
         return new Promise((resolve, reject) => {
-            document.addEventListener("FDC3:systemChannels",evt =>{
+            document.addEventListener("FDC3:returnFindIntent",evt =>{
                 resolve(evt.detail.data);
             }, {once : true});
-            document.dispatchEvent(new CustomEvent('FDC3:getSystemChannels', {}));
-                
+            //massage context to just get type...
+            if (typeof context === "object" && context.type){
+                context = context.type;
+            }
+            document.dispatchEvent(new CustomEvent('FDC3:findIntent', {
+                detail:{
+                    intent:intent,
+                    context:context
+                }
+            }));
+        });
+    },
 
+// returns, for example:
+// [{
+//     intent: { name: "StartCall", displayName: "Call" },
+//     apps: [{ name: "Skype" }]
+// },
+// {
+//     intent: { name: "StartChat", displayName: "Chat" },
+//     apps: [{ name: "Skype" }, { name: "Symphony" }, { name: "Slack" }]
+// }];
+    findIntentsByContext: function(context){
+        return new Promise((resolve, reject) => {
+            document.addEventListener("FDC3:returnFindIntentsByContext",evt =>{
+                resolve(evt.detail.data);
+            }, {once : true});
+            //massage context to just get type...
+            if (typeof context === "object" && context.type){
+                context = context.type;
+            }
+            document.dispatchEvent(new CustomEvent('FDC3:findIntentsByContext', {
+                detail:{
+                    context:context
+                }
+            }));
+        });
+    },
+
+    getSystemChannels: function(){
+        return new Promise((resolve, reject) => {
+            document.addEventListener("FDC3:returnSystemChannels",evt =>{
+                resolve(evt.detail.data);
+            }, {once : true});
+            document.dispatchEvent(new CustomEvent('FDC3:getSystemChannels', {
+  
+            }));
         });
     },
 

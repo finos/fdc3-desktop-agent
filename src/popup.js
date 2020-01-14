@@ -1,4 +1,5 @@
 import "./components/channel-picker";
+import utils from "./utils.js";
 import autoComplete from "./autoComplete";
 
 new autoComplete({
@@ -9,7 +10,7 @@ new autoComplete({
         // User search query
         const query = document.querySelector("#autoComplete").value;
         // Fetch External Data Source
-        const source = await fetch(`http://appd.kolbito.com/apps/search?text=${query}`);
+        const source = await fetch(`${utils.directoryUrl}/apps/search?text=${query}`);
         // Format data into JSON
         const data = await source.json();
         // Return Fetched data

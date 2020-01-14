@@ -102,6 +102,16 @@ chrome.runtime.onConnect.addListener(function(port) {
             case "getTabTitle":
                 return listeners.getTabTitle(msg, port).then(r => {return true;});
                 break;
+            case "findIntent":
+                return listeners.findIntent(msg, port).then(r => {
+                    port.postMessage({name:"returnFindIntent",data:r, intent:msg.intent, context:msg.context});    
+                });
+                break;
+            case "findIntentsByContext":
+                    return listeners.findIntentsByContext(msg, port).then(r => {
+                        port.postMessage({name:"returnFindIntentsByContext",data:r, context:msg.context});    
+                    });
+                    break;
             default:
                 console.error("no handler found for method", msg.method);
         }
