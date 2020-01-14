@@ -59,7 +59,7 @@ const bringToFront = (id) => {
     });
 };
 
-const directoryUrl = "http://www.kolbito.com";
+const directoryUrl = "http://appd.kolbito.com";
 
 
 export default{
