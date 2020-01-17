@@ -10,6 +10,7 @@ const getSystemChannels = () => {
 };
 
 const setConnected = (id, item) => {
+    console.log(`set connected id=${id} item=${item}`,connected);
     connected[id] = item;
     //todo - check item shape
     return true;
@@ -34,14 +35,20 @@ const dropConnected = (id)=> {
 const bringToFront = (id) => {
     return new Promise((resolve, reject) => {
         let _tab = null;
+        console.log("bringToFront",id);
         if (id.windowId && id.id){
             _tab = id;
         }
         else {
+        if (id.sender){
+           id = (id.sender.id + id.sender.tab.id);
+        }
+       
             let c = getConnected(id);
             if (c && c.port && c.port.sender){
                 _tab = c.port.sender.tab;
             }
+        
         }
         if (_tab){
             
@@ -59,8 +66,9 @@ const bringToFront = (id) => {
     });
 };
 
+//const directoryUrl = "http://brokenfdc3.com";
 const directoryUrl = "http://appd.kolbito.com";
-
+//const directoryUrl = "http://localhost:3000";
 
 export default{
     directoryUrl,

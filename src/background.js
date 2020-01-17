@@ -1,18 +1,9 @@
 import utils from "./utils";
 import listeners from "./bg-listeners";
 
-//const dirUrl = "http://localhost:3000";
-
-let directory = null;
 
 listeners.initContextChannels(utils.getSystemChannels());
 
-fetch(`${utils.directoryUrl}/apps`).then(_r =>{
-                let r = _r.clone();
-                r.json().then(data => {
-                    directory = data;
-                });
-});
 
 /*
     When an app (new window/tab) connects to the FDC3 service:
@@ -24,46 +15,84 @@ fetch(`${utils.directoryUrl}/apps`).then(_r =>{
 
 */
 chrome.runtime.onConnect.addListener(function(port) {
-    console.log("connected",port );
+    
     let app_url = new URL(port.sender.url);
     let app_id = (port.sender.id + port.sender.tab.id);
-    //look up in directory...
-    //to do: disambiguate apps with matching origins...
-    // todo: actually search against the appD service
-    let entry = directory.find(ent => {
-        if (ent.start_url){
-            let ent_url = new URL(ent.start_url);
-            return app_url.origin === ent_url.origin;
-        }
-        return false;
-    });
-    //fetch and bundle environmnet data for the app: app manifest, etc
-    let data = {};
-    
-    data.currentChannel = listeners.getTabChannel(port.sender.tab.id);
+    //envData is the known info we're going to pass back to the app post-connect
+    let envD = {};
+    envD.currentChannel = listeners.getTabChannel(port.sender.tab.id);
+    envD.tabId = port.sender.tab.id;
+    //let dMatch = [];
+    //look origin up in directory...
+    try {
+        fetch(`${utils.directoryUrl}/apps/search?origin=${app_url.origin}`).then(_r =>{ 
+            _r.json().then(data => {
+                //see if there was an exact match on origin
+                //if not (either nothing or ambiguous), then let's treat this as dynamic - i.e. no directory match
+                let entry = null;
+                if (data.length === 1){
+                    entry = data[0];
+            
+                    console.log("entry",entry);
+                    //if there is an exact match - we're going to try fetch the manifest 
+                    
+                    if (entry.manifest){
+                        //fetch and bundle environmnet data for the app: app manifest, etc
+                        fetch(entry.manifest).then(mR => {
 
-    data.tabId = port.sender.tab.id;
-    
-    if (entry){
-        if (entry.manifest){
-            fetch(entry.manifest).then(mR => {
-
-                mR.json().then(mD => {
-                    entry.manifestContent = mD;
-                    //port.directoryData = entry;
-                    data.directory = entry;
+                            mR.json().then(mD => {
+                                entry.manifestContent = mD;
+                                //port.directoryData = entry;
+                                envD.directory = entry;
+                                port.postMessage({name:"environmentData", 
+                                data:envD});
+                            });
+                        });
+                    }
+                    else {
+                    // port.directoryData = entry;
+                        envD.directory = entry;
+                        port.postMessage({name:"environmentData", data:envD});
+                    }
+                    
+                    
+                    utils.setConnected(app_id,{port:port, directoryData:entry});
+                }
+                else {
+                    if (data.length === 0){
+                        console.log("No match appd entries found");
+                    } else {
+                        console.log(`Ambiguous match - ${data.length} items found.`);
+                    }
                     port.postMessage({name:"environmentData", 
-                    data:data});
-                });
+                                data:envD});
+                    
+                    utils.setConnected(app_id,{port:port, directoryData:null});
+
+                }
+            }, e => {
+                console.log(`app data could not be parsed for origin ${app_url.origin}`);
+                port.postMessage({name:"environmentData", 
+                                data:envD});
+                    
+                    utils.setConnected(app_id,{port:port, directoryData:null});
             });
-        }
-        else {
-           // port.directoryData = entry;
-            data.directory = entry;
-            port.postMessage({name:"environmentData", data:data});
-        }
+        }, _r => {
+            console.log(`app data not found for origin ${app_url.origin}`);
+            port.postMessage({name:"environmentData", 
+                                data:envD});
+                    
+                    utils.setConnected(app_id,{port:port, directoryData:null});
+        });
     }
-    utils.setConnected(app_id,{port:port, directoryData:entry});
+    catch (e){
+        console.log(`app data not found for origin ${app_url.origin}`);
+        port.postMessage({name:"environmentData", 
+                                data:envD});
+                    
+                    utils.setConnected(app_id,{port:port, directoryData:null});
+    }
+
     
     port.onDisconnect.addListener(function(){
         console.log("disconnect",port);

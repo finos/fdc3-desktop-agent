@@ -189,134 +189,150 @@ const broadcast = (msg, port) => {
     });
 };
 
-const raiseIntent = (msg, port) => {
-    return new Promise((resolve, reject) => {
+const raiseIntent = async (msg, port) => {
+    return new Promise(async (resolve, reject) => {
         let r = [];
+
+        //add dynamic listeners...
+        let intentListeners = getIntentListeners(msg.data.intent);
+        if (intentListeners) {
+            intentListeners.forEach(id => {
+                //look up the details of the window and directory metadata in the "connected" store
+                let connect = utils.getConnected(id);
+                //de-dupe               
+                if (!r.find(item => {
+                    return item.details.port.sender.tab.id === connect.port.sender.tab.id;})){
+                    r.push({type:"window",details:connect});
+                }
+            });
+        }
         //pull intent handlers from the directory
         let ctx = "";
         if (msg.data.context){
             ctx = msg.data.context.type;
         }
-        fetch(`${utils.directoryUrl}/apps/search?intent=${msg.data.intent}&context=${ctx}`).then(_r =>{
-            //add dynamic listeners...
-            let intentListeners = getIntentListeners(msg.data.intent);
-            if (intentListeners) {
-                intentListeners.forEach(id => {
-                    //look up the details of the window and directory metadata in the "connected" store
-                    let connect = utils.getConnected(id);
-                    //de-dupe               
-                    if (!r.find(item => {
-                        return item.details.port.sender.tab.id === connect.port.sender.tab.id;})){
-                        r.push({type:"window",details:connect});
-                    }
-                });
+
+        const _r = await fetch(`${utils.directoryUrl}/apps/search?intent=${msg.data.intent}&context=${ctx}`);
+        if (_r){ 
+            let data = null;
+            try {
+                data = await _r.json();
+            }
+            catch (err){
+                console.log("error parsing json", err);
             }
 
-            _r.json().then(data => {
+            if (data){
                 data.forEach(entry => {
                     r.push({type:"directory", details:{directoryData:entry}});
 
                 });
-               
-                
-                 if (r.length > 0){
-                    if (r.length === 1){
-                        //if there is only one result, use that
-                     //if it is a window, post a message directly to it
-                     //if it is a directory entry resolve the destination for the intent and launch it
-                     //dedupe window and directory items
-                     if (r[0].type === "window"){
-                            r[0].details.port.postMessage({name:"intent", data:msg.data});
-                            utils.bringToFront(r[0].details.port);
-                            resolve(true);
-                        } else if (r[0].type === "directory"){
-                            console.log("directory ", r[0].details);
-                            let start_url = r[0].details.directoryData.start_url;
-                            fetch(r[0].details.directoryData.manifest).then(mR => {
-                                mR.json().then(mD => {
-                                   //if there is metadata in the manifest that routes to a different URL for the intent, use that
-                                    if (mD.intents){
-                                        //find the matching intent entry
-                                        let intentData = mD.intents.find(i => {
-                                            return i.type === msg.data.context.type && i.intent === msg.data.intent;
-                                        });
-                                        //set paramters
-                                        let ctx = msg.data.context;
-                                        let params = {};
-                                        Object.keys(mD.params).forEach(key =>{ 
-                                            let param = mD.params[key];
-                                            if (ctx.type === param.type){
-                                                if (param.key){
-                                                    params[key] = ctx[param.key];
-                                                }
-                                                else if (param.id){
-                                                    params[key]  = ctx.id[param.id]; 
-                                                }
+            }
+        }    
+
+        if (r.length > 0){
+            if (r.length === 1){
+                //if there is only one result, use that
+                //if it is a window, post a message directly to it
+                //if it is a directory entry resolve the destination for the intent and launch it
+                //dedupe window and directory items
+                if (r[0].type === "window"){
+                    r[0].details.port.postMessage({name:"intent", data:msg.data});
+                    utils.bringToFront(r[0].details.port);
+                    resolve(true);
+                } else if (r[0].type === "directory"){
+                    console.log("directory ", r[0].details);
+                    let start_url = r[0].details.directoryData.start_url;
+                    let mR = await fetch(r[0].details.directoryData.manifest);
+                    if (mR){
+                        try {
+                            let mD = await mR.json();
+                                //if there is metadata in the manifest that routes to a different URL for the intent, use that
+                                if (mD.intents){
+                                    //find the matching intent entry
+                                    let intentData = mD.intents.find(i => {
+                                        return i.type === msg.data.context.type && i.intent === msg.data.intent;
+                                    });
+                                    //set paramters
+                                    let ctx = msg.data.context;
+                                    let params = {};
+                                    Object.keys(mD.params).forEach(key =>{ 
+                                        let param = mD.params[key];
+                                        if (ctx.type === param.type){
+                                            if (param.key){
+                                                params[key] = ctx[param.key];
                                             }
-                                        });
-                                        //eval the url
-                                        let template = mD.templates[intentData.template];
-                                        Object.keys(params).forEach(key => {
-                                            let sub = "${" + key + "}";
-                                            let val = params[key];
-                                            while (template.indexOf(sub) > -1){
-                                                template = template.replace(sub,val);
+                                            else if (param.id){
+                                                params[key]  = ctx.id[param.id]; 
                                             }
-                                        });
-                                    
-                                        start_url = template;
-                                    }
-                                    let win = window.open(start_url,"_blank");
-                                    console.log("new window",win);
-                                    //send the context - if the default start_url was used...
-                                    //get the window/tab...
-                                    win.focus();
-                                    resolve(true);
-                                });
-                            });
+                                        }
+                                    });
+                                    //eval the url
+                                    let template = mD.templates[intentData.template];
+                                    Object.keys(params).forEach(key => {
+                                        let sub = "${" + key + "}";
+                                        let val = params[key];
+                                        while (template.indexOf(sub) > -1){
+                                            template = template.replace(sub,val);
+                                        }
+                                    });
+                                
+                                    start_url = template;
+                                }
+                                let win = window.open(start_url,"_blank");
+                                //send the context - if the default start_url was used...
+                                //get the window/tab...
+                                resolve(true);
+                        }
+                        catch (err){
+                            console.log("error parsing json", err);
                         }
                     }
-                    else {
-                        //show resolver UI
-                        // Send a message to the active tab
-                        //sort results alphabetically, with directory entries first (before window entries)
-                        console.log("before sort ", r);
-                        r.sort((a,b)=>{
-                            let aTitle = a.details.directoryData ? a.details.directoryData.title : a.details.port.sender.url;
-                            let bTitle = b.details.directoryData ? b.details.directoryData.title : b.details.port.sender.url;
-                            if (aTitle < bTitle){
-                                return -1;
-                            }
-                            if (aTitle > bTitle){
-                                return 1;
-                            }
-                            else {
-                                return 0;
-                            }
-                        });
-                        console.log("after sort ", r);
-            
-                        chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-                            var activeTab = tabs[0];
-                            chrome.tabs.sendMessage(activeTab.id, {
-                                "message": "intent_resolver", 
-                                "data":r, 
-                                "intent":msg.data.intent,
-                                "context":msg.data.context});
                             
-                        });
-                        resolve(true);
-                    }
                     
                 }
-                else {
-                    //show message indicating no handler for the intent...
-                    reject("no apps found for intent");
-                }
+            }
+            else {
+                //show resolver UI
+                // Send a message to the active tab
+                //sort results alphabetically, with directory entries first (before window entries)
+                console.log("before sort ", r);
+                r.sort((a,b)=>{
+                    let aTitle = a.details.directoryData ? a.details.directoryData.title : a.details.port.sender.url;
+                    let bTitle = b.details.directoryData ? b.details.directoryData.title : b.details.port.sender.url;
+                    if (aTitle < bTitle){
+                        return -1;
+                    }
+                    if (aTitle > bTitle){
+                        return 1;
+                    }
+                    else {
+                        return 0;
+                    }
+                });
+                console.log("after sort ", r);
+    
+                chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+                    var activeTab = tabs[0];
+                    chrome.tabs.sendMessage(activeTab.id, {
+                        "message": "intent_resolver", 
+                        "data":r, 
+                        "intent":msg.data.intent,
+                        "context":msg.data.context});
+                    
+                });
+                resolve(true);
+            }
+                    
+        }
+        else {
+            //show message indicating no handler for the intent...
+            reject("no apps found for intent");
+        }
 
-            });
+            
         });
-    });
+    
 };
 
 const resolveIntent = (msg, port) => {
