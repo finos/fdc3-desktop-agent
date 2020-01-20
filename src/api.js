@@ -1,16 +1,32 @@
+
 window.fdc3 = {
     _contextListeners:[],
     _intentListeners:{},
     open:function(name, context){
         return new Promise((resolve, reject) => {
+            const ts = Date.now();
+            const eventId = `open_${ts}`;
+    
+            document.addEventListener(`FDC3:return_${eventId}`,(evt)=>{
+                if (evt.detail){
+                    resolve(evt.detail);
+                }
+                else {
+                    reject(false);
+                }
+             
+            },{once:true});
+        
             document.dispatchEvent(new CustomEvent('FDC3:open', {
                 detail:{
                     name:name,
-                    context:context
+                    context:context,
+                    eventId:eventId,
+                    ts:ts
                 } 
                 
             }));
-            resolve(true);
+
         });
     },
     broadcast:function(context){

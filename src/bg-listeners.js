@@ -60,31 +60,35 @@ const getTabChannel = (id) => {
     return tabChannels[(id + "")];
 };
 
-const open = (msg, port) => {
-    return new Promise((resolve, reject) => {
-        fetch(`${utils.directoryUrl}/apps/${msg.data.name}`).then(result => {
-            result.json().then(r => {
+const open = async (msg, port) => {
+    return new Promise(async (resolve, reject) => {
+        const result = await fetch(`${utils.directoryUrl}/apps/${msg.data.name}`);
+        if (result) {
+            try {
+                const r = await result.json();
                 //todo: get the manifest...
-               /* fetch(result.manifest).then(mR => {
-                    mR.json().then(mD => {
-                        let win = window.open(mD.start_url,msg.data.name);
-                        win.focus();
-                        
-                    });
-                });*/
-                if (msg.data.context){
-                    setPendingContext(r.start_url, msg.data.context);
+                if (r && r.start_url){
+                    if (msg.data.context){
+                        setPendingContext(r.start_url, msg.data.context);
+                    }
+                    window.open(r.start_url,"_blank");
+                    //todo: handle context, templates, etc
+                    //todo: return app handle object with tab...
+                    //todo: handle no appd and other error conditions
+                    resolve(true);
                 }
-                window.open(r.start_url,"_blank");
-                //todo: handle context, templates, etc
-
-                //todo: return app handle object with tab...
-                //todo: handle no appd and other error conditions
-                resolve(true);
-            });
-               
-            
-        });
+                else {
+                    reject(utils.OpenError.AppNotFound);
+                }
+        
+            }
+            catch (err){
+                reject(utils.OpenError.AppNotFound);
+            }
+        }
+        else {
+            reject(utils.OpenError.AppNotFound);
+        }
     });
 };
 
@@ -183,7 +187,7 @@ const broadcast = (msg, port) => {
         contexts[channel].unshift(msg.data.context);
         //broadcast to listeners
         contextListeners[channel].forEach(l => {
-            utils.getConnected(l).port.postMessage({name:"context", data:msg.data});
+            utils.getConnected(l).port.postMessage({topic:"context", data:msg.data});
         });
         resolve(true);
     });
@@ -237,7 +241,7 @@ const raiseIntent = async (msg, port) => {
                 //if it is a directory entry resolve the destination for the intent and launch it
                 //dedupe window and directory items
                 if (r[0].type === "window"){
-                    r[0].details.port.postMessage({name:"intent", data:msg.data});
+                    r[0].details.port.postMessage({topic:"intent", data:msg.data});
                     utils.bringToFront(r[0].details.port);
                     resolve(true);
                 } else if (r[0].type === "directory"){
@@ -284,6 +288,7 @@ const raiseIntent = async (msg, port) => {
                                 //get the window/tab...
                                 resolve(true);
                         }
+
                         catch (err){
                             console.log("error parsing json", err);
                         }
@@ -344,7 +349,7 @@ if (msg.selected.type === "window"){
         return item === msg.selected.details.port.sender.id + msg.selected.details.port.sender.tab.id;
     });
     if (win){
-        utils.getConnected(win).port.postMessage({name:"intent", data:{intent:msg.intent, context: msg.context}});    
+        utils.getConnected(win).port.postMessage({topic:"intent", data:{intent:msg.intent, context: msg.context}});    
         utils.bringToFront(win); 
         resolve(true);
     }
@@ -428,7 +433,7 @@ const joinChannel = (msg, port) => {
         chrome.browserAction.setBadgeBackgroundColor({color:selectedChannel.visualIdentity.color,
             tabId:port.sender.tab.id});
          //push current channel context 
-        port.postMessage({name:"context", data:{context:contexts[chan][0]}});
+        port.postMessage({topic:"context", data:{context:contexts[chan][0]}});
         resolve(true);
     });
 };
@@ -477,7 +482,7 @@ const getTabTitle = (msg, port) => {
     return new Promise((resolve, reject) => {
         let id = msg.tabId;
         chrome.tabs.sendMessage(id, {"message": "get-tab-title"}, function(r){
-            port.postMessage({name:"tabTitle",
+            port.postMessage({topic:"tabTitle",
                                 tabId:id,
                             data:{title:r}});
             resolve(true);

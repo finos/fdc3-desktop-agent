@@ -11,6 +11,31 @@ import channels from "./system-channels";
 //establish comms with the background script 
  let port = chrome.runtime.connect({name: "fdc3"});
 
+/**
+ * return listeners
+ * most fdc3 api calls are promise based and many require resolution/rejection following complex interaction that may involve end user input, app loading times etc
+ * so, we need to a symetrical return event when events are dispatched to the background script and to uniquely identifiy the event
+ * also, need to support timeout/expiration of the event, for example, if an app takes too long to load or an end user never responds to a prompt
+ * 
+ * all promise based FDC3 methods send an event to the background script and listens for an event of "return" + eventName 
+ * a unique identifier is assigned to the event (timestamp) 
+ * the return handler will route back to correct handler function via the timestamp identifier
+ * handlers will be routinely cleaned up by finding all events that have expired (check timestamp) and rejecting those items
+ */
+//collection of listeners for api calls coming back from the background script
+let returnListeners = {};
+const returnTimeout = (1000 * 60 * 2);
+
+ //listen for return messages for api calls
+ port.onMessage.addListener(msg => {
+    //is there a returnlistener registered for the event?
+    let listener = returnListeners[msg.name].listener;
+    if (listener){
+        console.log("listener", msg);
+        listener.call(port,msg);
+    }
+ });
+
  //automated handlers based on manifest metadata - other handlers are set and dispatched by the API layer
  //these just need to be markers - since the handling itself is just automgenerated from the metadata held in the manifest 
  let _intentHandlers = [];
@@ -24,11 +49,11 @@ function getTabTitle(tabId){
     let id = tabId;
     return new Promise((resolve, reject) => {
         port.onMessage.addListener(msg => {
-            if (msg.name === "tabTitle" && id === msg.tabId){
+            if (msg.topic === "tabTitle" && id === msg.tabId){
                 resolve(msg.data.title);
             }
         });
-        port.postMessage({method:"getTabTitle", "tabId":tabId});
+        port.postMessage({topic:"getTabTitle", "tabId":tabId});
     });  
 }
 
@@ -36,28 +61,36 @@ function getTabTitle(tabId){
  
  //listen for FDC3 events
  document.addEventListener('FDC3:open',e => {
-     port.postMessage({method:"open", "data": e.detail});   
+     //get eventId and timestamp from the event 
+     let eventId = e.detail.eventId;
+     returnListeners[eventId] = {
+         ts:e.detail.ts,
+         listener:function(msg, port){
+             
+        document.dispatchEvent(new CustomEvent(`FDC3:return_${eventId}`, {detail:msg.data})); }
+     };
+     port.postMessage({topic:"open", "data": e.detail});   
  });
 
 document.addEventListener('FDC3:broadcast',e => {
-    port.postMessage({method:"broadcast", "data": e.detail}); 
+    port.postMessage({topic:"broadcast", "data": e.detail}); 
 });
 
 document.addEventListener('FDC3:raiseIntent',e => {
-    port.postMessage({method:"raiseIntent", "data": e.detail}); 
+    port.postMessage({topic:"raiseIntent", "data": e.detail}); 
 });
 
 document.addEventListener('FDC3:addContextListener',e => {
-    port.postMessage({method:"addContextListener", "data": e.detail}); 
+    port.postMessage({topic:"addContextListener", "data": e.detail}); 
 });
 
 document.addEventListener('FDC3:addIntentListener',e => {
-    port.postMessage({method:"addIntentListener", "data": e.detail}); 
+    port.postMessage({topic:"addIntentListener", "data": e.detail}); 
 });
 
 document.addEventListener('FDC3:joinChannel',e => {
     currentChannel = e.detail.data.channel;
-    port.postMessage({method:"joinChannel", "data": e.detail}); 
+    port.postMessage({topic:"joinChannel", "data": e.detail}); 
 });
 
 document.addEventListener('FDC3:getSystemChannels',e => {
@@ -76,7 +109,7 @@ document.addEventListener('FDC3:findIntent',e => {
     let r = {intent:{},
                 apps:[]};
     port.onMessage.addListener(msg => {
-        if (msg.name === "returnFindIntent" && msg.intent === intent && msg.context === context){
+        if (msg.topic === "returnFindIntent" && msg.intent === intent && msg.context === context){
 
             r.apps = msg.data;
             let intnt = r.apps[0].intents.filter(i => {return i.name === intent;});
@@ -91,7 +124,7 @@ document.addEventListener('FDC3:findIntent',e => {
         }
     });
     //retrieve apps for the intent
-    port.postMessage({method:"findIntent", "intent":intent,"context":e.detail.context});
+    port.postMessage({topic:"findIntent", "intent":intent,"context":e.detail.context});
     
 });
 
@@ -111,7 +144,7 @@ document.addEventListener('FDC3:findIntentsByContext',e => {
         //{intent:{},
                  //   apps:[]};
         port.onMessage.addListener(msg => {
-            if (msg.name === "returnFindIntentsByContext" && msg.context === context){
+            if (msg.topic === "returnFindIntentsByContext" && msg.context === context){
     
                 let r = [];
                 let d = msg.data;
@@ -148,12 +181,12 @@ document.addEventListener('FDC3:findIntentsByContext',e => {
             }
         });
         //retrieve apps for the intent
-        port.postMessage({method:"findIntentsByContext", "context":e.detail.context});
+        port.postMessage({topic:"findIntentsByContext", "context":e.detail.context});
         
     });
 
 port.onMessage.addListener(msg => {
-    if (msg.name === "environmentData"){
+    if (msg.topic === "environmentData"){
         console.log(msg.data);
         //if there is manifest content, wire up listeners if intents and context metadata are there
         let mani = msg.data.directory.manifestContent;
@@ -163,14 +196,14 @@ port.onMessage.addListener(msg => {
             if (mani.intents){
                 //iterate through the intents, and set listeners
                 mani.intents.forEach(intent => {
-                    port.postMessage({method:"addIntentListener", "data": {intent:intent.intent }}); 
+                    port.postMessage({topic:"addIntentListener", "data": {intent:intent.intent }}); 
                     _intentHandlers.push(intent.intent);
                 });
             }
             if (mani.contexts){
                 //iterate through context metadata and set listeners
                 mani.contexts.forEach(context => {
-                    port.postMessage({method:"addContextListener", "data": {context:context.type}}); 
+                    port.postMessage({topic:"addContextListener", "data": {context:context.type}}); 
                     _contextHandlers.push(context.type);
                 });
             
@@ -178,12 +211,12 @@ port.onMessage.addListener(msg => {
         }
         if (msg.data.currentChannel){
             currentChannel = msg.data.currentChannel;
-            port.postMessage({method:"joinChannel", "data": {channel:currentChannel}}); 
+            port.postMessage({topic:"joinChannel", "data": {channel:currentChannel}}); 
             
             
         }
     }
-   else  if (msg.name === "context"){
+   else  if (msg.topic === "context"){
        //check for handlers at the content script layer (automatic handlers) - if not, dispatch to the API layer...
        if (_contextHandlers.indexOf(msg.data.context.type) > -1 && contentManifest){
         let contextMeta = contentManifest.contexts.find(i => {
@@ -227,7 +260,7 @@ port.onMessage.addListener(msg => {
             detail:{data:msg.data}
         }));
     }
-    else if (msg.name === "intent") {
+    else if (msg.topic === "intent") {
         //check for handlers at the content script layer (automatic handlers) - if not, dispatch to the API layer...
         if (_intentHandlers.indexOf(msg.data.intent) > -1 && contentManifest){
             let intentData = contentManifest.intents.filter(i => {
@@ -305,10 +338,10 @@ let resolver = null;
         }
         else if (request.message === "popup-join-channel"){
             currentChannel = request.channel;
-            port.postMessage({method:"joinChannel", "data": {channel:request.channel}}); 
+            port.postMessage({topic:"joinChannel", "data": {channel:request.channel}}); 
         }
         else if (request.message === "popup-open"){
-            port.postMessage({method:"open", "data": {name:request.name}}); 
+            port.postMessage({topic:"open", "data": {name:request.name}}); 
         }
   
       else if (request.message === "intent_resolver"){
@@ -388,7 +421,7 @@ let resolver = null;
                 //send resolution message to extension to route
                // console.log(`intent resolved (window).  selected = ${JSON.stringify(selected)} intent = ${JSON.stringify(request.intent)} contect = ${JSON.stringify(request.context)}`)
                 port.postMessage({
-                    method:"resolveIntent",
+                    topic:"resolveIntent",
                     intent:request.intent,
                     selected:selected,
                     context:request.context

@@ -44,7 +44,7 @@ chrome.runtime.onConnect.addListener(function(port) {
                                 entry.manifestContent = mD;
                                 //port.directoryData = entry;
                                 envD.directory = entry;
-                                port.postMessage({name:"environmentData", 
+                                port.postMessage({topic:"environmentData", 
                                 data:envD});
                             });
                         });
@@ -52,7 +52,7 @@ chrome.runtime.onConnect.addListener(function(port) {
                     else {
                     // port.directoryData = entry;
                         envD.directory = entry;
-                        port.postMessage({name:"environmentData", data:envD});
+                        port.postMessage({topic:"environmentData", data:envD});
                     }
                     
                     
@@ -64,7 +64,7 @@ chrome.runtime.onConnect.addListener(function(port) {
                     } else {
                         console.log(`Ambiguous match - ${data.length} items found.`);
                     }
-                    port.postMessage({name:"environmentData", 
+                    port.postMessage({topic:"environmentData", 
                                 data:envD});
                     
                     utils.setConnected(app_id,{port:port, directoryData:null});
@@ -72,14 +72,14 @@ chrome.runtime.onConnect.addListener(function(port) {
                 }
             }, e => {
                 console.log(`app data could not be parsed for origin ${app_url.origin}`);
-                port.postMessage({name:"environmentData", 
+                port.postMessage({topic:"environmentData", 
                                 data:envD});
                     
                     utils.setConnected(app_id,{port:port, directoryData:null});
             });
         }, _r => {
             console.log(`app data not found for origin ${app_url.origin}`);
-            port.postMessage({name:"environmentData", 
+            port.postMessage({topic:"environmentData", 
                                 data:envD});
                     
                     utils.setConnected(app_id,{port:port, directoryData:null});
@@ -87,7 +87,7 @@ chrome.runtime.onConnect.addListener(function(port) {
     }
     catch (e){
         console.log(`app data not found for origin ${app_url.origin}`);
-        port.postMessage({name:"environmentData", 
+        port.postMessage({topic:"environmentData", 
                                 data:envD});
                     
                     utils.setConnected(app_id,{port:port, directoryData:null});
@@ -104,11 +104,23 @@ chrome.runtime.onConnect.addListener(function(port) {
         //cleanup the listeners...
         listeners.dropIntentListeners(port);
     });
-    port.onMessage.addListener(function(msg) {
+    port.onMessage.addListener(async function(msg) {
        
-        switch (msg.method){
+        switch (msg.topic){
             case "open":
-                return listeners.open(msg, port).then(r => {return true;});  
+                let r = null;
+                try {
+                    r = await listeners.open(msg, port);
+                }
+                catch (err){
+                    console.log("error", err);
+                    r = false;
+                }
+                port.postMessage({
+                        topic:msg.data.eventId,
+                        data:r
+                });
+                 
                 break;
             case "addContextListener":
                 return listeners.addContextListener(msg, port).then(r => {return true;});
@@ -133,16 +145,16 @@ chrome.runtime.onConnect.addListener(function(port) {
                 break;
             case "findIntent":
                 return listeners.findIntent(msg, port).then(r => {
-                    port.postMessage({name:"returnFindIntent",data:r, intent:msg.intent, context:msg.context});    
+                    port.postMessage({topic:"returnFindIntent",data:r, intent:msg.intent, context:msg.context});    
                 });
                 break;
             case "findIntentsByContext":
                     return listeners.findIntentsByContext(msg, port).then(r => {
-                        port.postMessage({name:"returnFindIntentsByContext",data:r, context:msg.context});    
+                        port.postMessage({topic:"returnFindIntentsByContext",data:r, context:msg.context});    
                     });
                     break;
             default:
-                console.error("no handler found for method", msg.method);
+                console.error("no handler found for method", msg.topic);
         }
 
     });
