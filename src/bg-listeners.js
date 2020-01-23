@@ -71,11 +71,15 @@ const open = async (msg, port) => {
                     if (msg.data.context){
                         setPendingContext(r.start_url, msg.data.context);
                     }
-                    window.open(r.start_url,"_blank");
+                    //window.open(r.start_url,"_blank");
+                    chrome.tabs.create({url:r.start_url},tab =>{
+                        resolve(tab.id);
+                    });
+                    //wait for the window to connect...
                     //todo: handle context, templates, etc
                     //todo: return app handle object with tab...
                     //todo: handle no appd and other error conditions
-                    resolve(true);
+                    
                 }
                 else {
                     reject(utils.OpenError.AppNotFound);
@@ -301,7 +305,6 @@ const raiseIntent = async (msg, port) => {
                 //show resolver UI
                 // Send a message to the active tab
                 //sort results alphabetically, with directory entries first (before window entries)
-                console.log("before sort ", r);
                 r.sort((a,b)=>{
                     let aTitle = a.details.directoryData ? a.details.directoryData.title : a.details.port.sender.url;
                     let bTitle = b.details.directoryData ? b.details.directoryData.title : b.details.port.sender.url;
@@ -315,18 +318,29 @@ const raiseIntent = async (msg, port) => {
                         return 0;
                     }
                 });
-                console.log("after sort ", r);
-    
+
+                let eventId = `resolveIntent-${Date.now()}`;
+
+                //set a handler for resolving the intent (when end user selects a destination)
+                port.onMessage.addListener(async msg => {
+                    if (msg.topic === eventId){
+                        
+                        let r = await resolveIntent(msg, port);
+                        resolve({result:true, tab:r});
+                    }
+                });
                 chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
                     var activeTab = tabs[0];
+                   
                     chrome.tabs.sendMessage(activeTab.id, {
                         "message": "intent_resolver", 
+                        "eventId": eventId,
                         "data":r, 
                         "intent":msg.data.intent,
                         "context":msg.data.context});
                     
                 });
-                resolve(true);
+                
             }
                     
         }
@@ -340,74 +354,74 @@ const raiseIntent = async (msg, port) => {
     
 };
 
-const resolveIntent = (msg, port) => {
-    return new Promise((resolve, reject) => {
-//find the app to route to
-if (msg.selected.type === "window"){
-    let winList = getIntentListeners(msg.intent);
-    let win = winList.find(item => {
-        return item === msg.selected.details.port.sender.id + msg.selected.details.port.sender.tab.id;
-    });
-    if (win){
-        utils.getConnected(win).port.postMessage({topic:"intent", data:{intent:msg.intent, context: msg.context}});    
-        utils.bringToFront(win); 
-        resolve(true);
-    }
-    
-}
-else if (msg.selected.type === "directory"){
-    fetch(msg.selected.details.directoryData.manifest).then(mR => {
-        mR.json().then(mD => {
-            let start_url = mD.start_url;
-            if (mD.intents){
-                //find the matching intent entry
-                let intentData = mD.intents.find(i => {
-                    if (i.type){
-                       return i.type === msg.context.type && i.intent === msg.intent;
-                    }
-                    else {
-                       return i.intent === msg.intent;
-                    }
-                });
-                //set paramters
-                let ctx = msg.context;
-                let params = {};
-                Object.keys(mD.params).forEach(key =>{ 
-                    let param = mD.params[key];
-                    if (ctx.type === param.type){
-                        if (param.key){
-                            params[key] = ctx[param.key];
-                        }
-                        else if (param.id){
-                            params[key]  = ctx.id[param.id]; 
-                        }
-                    }
-                });
-                //generate the url
-                let template = mD.templates[intentData.template];
-                Object.keys(params).forEach(key => {
-                    let sub = "${" + key + "}";
-                    let val = params[key];
-                    while (template.indexOf(sub) > -1){
-                        template = template.replace(sub,val);
-                    }
-              
-                });
-            
-                start_url = template;
+
+const resolveIntent = async (msg, port) => {
+    return new Promise(async (resolve, reject) => {
+        //find the app to route to
+        if (msg.selected.type === "window"){
+            let winList = getIntentListeners(msg.intent);
+            let win = winList.find(item => {
+                return item === msg.selected.details.port.sender.id + msg.selected.details.port.sender.tab.id;
+            });
+            if (win){
+                utils.getConnected(win).port.postMessage({topic:"intent", data:{intent:msg.intent, context: msg.context}});    
+                utils.bringToFront(win); 
+                resolve({result:true, tab:msg.selected.details.port.sender.tab.id});
             }
-            let win = window.open(start_url,"_blank");
             
-            //set pending intent for the url...
-            setPendingIntent(start_url, msg.intent, msg.context);
-            //keep array of pending, id by url,  store intent & context, timestamp
-            //when a new window connects, throw out anything more than 2 minutes old, then match on url
-            //when a match is found, remove match from the list, send intent w/context, and bring to front
-            resolve(true);
-        });
-    });
-}
-    });
+        }
+        else if (msg.selected.type === "directory"){
+            let mR = await fetch(msg.selected.details.directoryData.manifest);
+            let mD = await mR.json();
+                    let start_url = mD.start_url;
+                    if (mD.intents){
+                        //find the matching intent entry
+                        let intentData = mD.intents.find(i => {
+                            if (i.type){
+                               return i.type === msg.context.type && i.intent === msg.intent;
+                            }
+                            else {
+                               return i.intent === msg.intent;
+                            }
+                        });
+                        //set paramters
+                        let ctx = msg.context;
+                        let params = {};
+                        Object.keys(mD.params).forEach(key =>{ 
+                            let param = mD.params[key];
+                            if (ctx.type === param.type){
+                                if (param.key){
+                                    params[key] = ctx[param.key];
+                                }
+                                else if (param.id){
+                                    params[key]  = ctx.id[param.id]; 
+                                }
+                            }
+                        });
+                        //generate the url
+                        let template = mD.templates[intentData.template];
+                        Object.keys(params).forEach(key => {
+                            let sub = "${" + key + "}";
+                            let val = params[key];
+                            while (template.indexOf(sub) > -1){
+                                template = template.replace(sub,val);
+                            }
+                      
+                        });
+                    
+                        start_url = template;
+                    }
+                    let win = window.open(start_url,"_blank");
+                    
+                    //set pending intent for the url...
+                    setPendingIntent(start_url, msg.intent, msg.context);
+                    //keep array of pending, id by url,  store intent & context, timestamp
+                    //when a new window connects, throw out anything more than 2 minutes old, then match on url
+                    //when a match is found, remove match from the list, send intent w/context, and bring to front
+                    resolve(true);
+        
+                }
+            });
 };
 
 const joinChannel = (msg, port) => {

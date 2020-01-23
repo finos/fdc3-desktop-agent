@@ -1,60 +1,39 @@
+function _doFdc3(){
+
+const wireMethod = (method, detail) => {
+    return new Promise((resolve, reject) => {
+        const ts = Date.now();
+        const eventId = `${method}_${ts}`;
+
+        document.addEventListener(`FDC3:return_${eventId}`,(evt)=>{
+            console.log(`API: return for ${eventId}`,evt);
+            if (evt.detail.result){
+                resolve(evt.detail);
+            }
+            else {
+                reject(evt.detail);
+            }           
+        },{once:true});
+        detail.eventId = eventId;
+        detail.ts = ts;
+        console.log(`API: dispatch for ${method}`, detail);
+        document.dispatchEvent(new CustomEvent(`FDC3:${method}`,{detail:detail}));
+
+    });
+};
 
 window.fdc3 = {
     _contextListeners:[],
     _intentListeners:{},
     open:function(name, context){
-        return new Promise((resolve, reject) => {
-            const ts = Date.now();
-            const eventId = `open_${ts}`;
-    
-            document.addEventListener(`FDC3:return_${eventId}`,(evt)=>{
-                if (evt.detail){
-                    resolve(evt.detail);
-                }
-                else {
-                    reject(false);
-                }
-             
-            },{once:true});
-        
-            document.dispatchEvent(new CustomEvent('FDC3:open', {
-                detail:{
-                    name:name,
-                    context:context,
-                    eventId:eventId,
-                    ts:ts
-                } 
-                
-            }));
-
-        });
+        return wireMethod("open", {name:name, context:context});
     },
     broadcast:function(context){
-        return new Promise((resolve, reject) => {
-            document.dispatchEvent(new CustomEvent('FDC3:broadcast', {
-                detail:{
-                    context:context
-                } 
-                
-            }));
-            resolve(true);
-
-        });
+        return wireMethod("broadcast", {context:context});
     },
 
     raiseIntent:function(intent, context){
-        return new Promise((resolve, reject) => {
-
-            document.dispatchEvent(new CustomEvent('FDC3:raiseIntent', {
-                detail:{
-                    intent:intent,
-                    context:context
-                } 
-                
-            }));
-            resolve(true);
-
-        });
+       return wireMethod("raiseIntent",{intent:intent, context:context});
     },
 
     addContextListener:function(listener){
@@ -166,7 +145,7 @@ window.fdc3 = {
 
 
 //components
-
+/*
 
 class FDC3ChannelPicker extends HTMLElement {
     constructor() {
@@ -332,6 +311,9 @@ class FDC3ChannelPicker extends HTMLElement {
     }
 
    
-}
+}*/
  // Define the new element
- customElements.define("fdc3-channel-picker", FDC3ChannelPicker);
+// customElements.define("fdc3-channel-picker", FDC3ChannelPicker);
+};
+
+_doFdc3();

@@ -29,10 +29,11 @@ const returnTimeout = (1000 * 60 * 2);
  //listen for return messages for api calls
  port.onMessage.addListener(msg => {
     //is there a returnlistener registered for the event?
-    let listener = returnListeners[msg.name].listener;
+    let listener = returnListeners[msg.topic].listener;
     if (listener){
-        console.log("listener", msg);
+        console.log("Content: listener", msg);
         listener.call(port,msg);
+        returnListeners[msg.name] = undefined;
     }
  });
 
@@ -57,46 +58,32 @@ function getTabTitle(tabId){
     });  
 }
 
-
+const wireTopic = (topic, cb) => {
+    document.addEventListener(`FDC3:${topic}`,e => {
+        //get eventId and timestamp from the event 
+        console.log(`Content: wireTopic.  topic = '${topic}', event`,e);
+        let eventId = e.detail.eventId;
+        returnListeners[eventId] = {
+            ts:e.ts,
+            listener:function(msg, port){
+            console.log(`Content: dispatch return event for ${eventId}`,e);    
+           document.dispatchEvent(new CustomEvent(`FDC3:return_${eventId}`, {detail:msg.data})); }
+        };
+        if (cb){
+            cb.call(this,e);
+        }
+        port.postMessage({topic:topic, "data": e.detail});   
+    }); 
+};
  
  //listen for FDC3 events
- document.addEventListener('FDC3:open',e => {
-     //get eventId and timestamp from the event 
-     let eventId = e.detail.eventId;
-     returnListeners[eventId] = {
-         ts:e.detail.ts,
-         listener:function(msg, port){
-             
-        document.dispatchEvent(new CustomEvent(`FDC3:return_${eventId}`, {detail:msg.data})); }
-     };
-     port.postMessage({topic:"open", "data": e.detail});   
- });
+ //boilerplate topics
+ const topics = ["open","broadcast","raiseIntent","addContextListener","addIntentListener","getSystemChannels"]
+ topics.forEach(t => {wireTopic(t);});
+ //set the custom ones...
+ wireTopic("joinChannel",e => { currentChannel = e.detail.data.channel;});
 
-document.addEventListener('FDC3:broadcast',e => {
-    port.postMessage({topic:"broadcast", "data": e.detail}); 
-});
-
-document.addEventListener('FDC3:raiseIntent',e => {
-    port.postMessage({topic:"raiseIntent", "data": e.detail}); 
-});
-
-document.addEventListener('FDC3:addContextListener',e => {
-    port.postMessage({topic:"addContextListener", "data": e.detail}); 
-});
-
-document.addEventListener('FDC3:addIntentListener',e => {
-    port.postMessage({topic:"addIntentListener", "data": e.detail}); 
-});
-
-document.addEventListener('FDC3:joinChannel',e => {
-    currentChannel = e.detail.data.channel;
-    port.postMessage({topic:"joinChannel", "data": e.detail}); 
-});
-
-document.addEventListener('FDC3:getSystemChannels',e => {
-    document.dispatchEvent(new CustomEvent("FDC3:returnSystemChannels", {detail:{data: channels}})); 
-});
-
+ //rationalize these later...
 document.addEventListener('FDC3:findIntent',e => {
 // returns a single AppIntent:
 // {
@@ -421,7 +408,7 @@ let resolver = null;
                 //send resolution message to extension to route
                // console.log(`intent resolved (window).  selected = ${JSON.stringify(selected)} intent = ${JSON.stringify(request.intent)} contect = ${JSON.stringify(request.context)}`)
                 port.postMessage({
-                    topic:"resolveIntent",
+                    topic:request.eventId,
                     intent:request.intent,
                     selected:selected,
                     context:request.context

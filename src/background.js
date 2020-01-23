@@ -104,21 +104,34 @@ chrome.runtime.onConnect.addListener(function(port) {
         //cleanup the listeners...
         listeners.dropIntentListeners(port);
     });
+
+    const wrapListener = async (msg, port, decorator) => {
+        let r = null;
+            try {
+                let _r = await listeners[msg.topic].call(this, msg, port);
+                
+                r = decorator.call({result:true}, _r);
+            }
+            catch (err){
+                console.log("error", err);
+                r = {result:false,
+                    error:err};
+            }
+            port.postMessage({
+                    topic:msg.data.eventId,
+                    data:r
+            }); 
+    };
+
     port.onMessage.addListener(async function(msg) {
        
+     
+
         switch (msg.topic){
             case "open":
-                let r = null;
-                try {
-                    r = await listeners.open(msg, port);
-                }
-                catch (err){
-                    console.log("error", err);
-                    r = false;
-                }
-                port.postMessage({
-                        topic:msg.data.eventId,
-                        data:r
+                wrapListener(msg, port,(obj, r) => {
+                    obj.tab = r;
+                    return obj;
                 });
                  
                 break;
@@ -129,14 +142,18 @@ chrome.runtime.onConnect.addListener(function(port) {
                 return listeners.addIntentListener(msg, port).then(r => {return true;});
                 break;
              case "broadcast":
-                return listeners.broadcast(msg, port).then(r => {return true;});
+                wrapListener(msg, port,(obj, r) => {
+                    return obj;
+                });
+               
                 break;
              case "raiseIntent":
-                return listeners.raiseIntent(msg, port).then(r => {return true;}); 
+                 wrapListener(msg, port, (obj, r) => {
+                    return obj;
+                });
+
                 break;
-             case "resolveIntent":
-                return listeners.resolveIntent(msg, port).then(r => {return true;});
-                break;
+ 
              case "joinChannel":
                 return listeners.joinChannel(msg, port).then(r => {return true;});
                 break;  
@@ -154,7 +171,7 @@ chrome.runtime.onConnect.addListener(function(port) {
                     });
                     break;
             default:
-                console.error("no handler found for method", msg.topic);
+                console.log("no handler found for method", msg.topic);
         }
 
     });
