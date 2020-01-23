@@ -60,6 +60,7 @@ function getTabTitle(tabId){
 
 const wireTopic = (topic, cb) => {
     document.addEventListener(`FDC3:${topic}`,e => {
+        
         //get eventId and timestamp from the event 
         console.log(`Content: wireTopic.  topic = '${topic}', event`,e);
         let eventId = e.detail.eventId;
@@ -83,6 +84,13 @@ const wireTopic = (topic, cb) => {
  //set the custom ones...
  wireTopic("joinChannel",e => { currentChannel = e.detail.data.channel;});
 
+document.addEventListener("FDC3:resolver-close", e => {
+    console.log("close resolver");
+    port.postMessage({topic:"resolver-close"});   
+    if (resolver){
+        resolver.style.display = "none";
+    }
+});
  //rationalize these later...
 document.addEventListener('FDC3:findIntent',e => {
 // returns a single AppIntent:
@@ -305,10 +313,11 @@ port.onMessage.addListener(msg => {
 let resolver = null;
  document.addEventListener('keydown', k => {
      if (k.code === "Escape" ){
-     
-        if (resolver){
+        document.dispatchEvent(new CustomEvent("FDC3:resolver-close",{
+        })); 
+       /* if (resolver){
             resolver.style.display = "none";
-        }
+        }*/
     }
 });
 

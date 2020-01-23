@@ -201,6 +201,13 @@ const raiseIntent = async (msg, port) => {
     return new Promise(async (resolve, reject) => {
         let r = [];
 
+        //handle the resolver UI closing
+        port.onMessage.addListener(async msg => {
+            if (msg.topic === "resolver-close"){
+                resolve({result:true});
+            }
+        });
+
         //add dynamic listeners...
         let intentListeners = getIntentListeners(msg.data.intent);
         if (intentListeners) {
@@ -290,7 +297,7 @@ const raiseIntent = async (msg, port) => {
                                 let win = window.open(start_url,"_blank");
                                 //send the context - if the default start_url was used...
                                 //get the window/tab...
-                                resolve(true);
+                                resolve({result:true});
                         }
 
                         catch (err){

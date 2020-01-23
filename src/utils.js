@@ -1,5 +1,25 @@
 import channels from "./system-channels";
-//todo - move system channels to the db
+
+//const directoryUrl = "http://brokenfdc3.com";
+const directoryUrl = "http://appd.kolbito.com";
+//const directoryUrl = "http://localhost:3000";
+
+/***
+ * Error Objects
+ */
+const OpenError  = {
+    AppNotFound:"AppNotFound",
+    ErrorOnLaunch:"ErrorOnLaunch",
+    AppTimeout:"AppTimeout",
+    ResolverUnavailable:"ResolverUnavailable"
+  };
+
+const ResolveError = {
+    NoAppsFound:"NoAppsFound",
+    ResolverUnavailable:"ResolverUnavailable",
+    ResolverTimeout:"ResolverTimeout"
+  };
+
 
 //connected end points / apps
 let connected = {};
@@ -66,9 +86,7 @@ const bringToFront = (id) => {
     });
 };
 
-//const directoryUrl = "http://brokenfdc3.com";
-const directoryUrl = "http://appd.kolbito.com";
-//const directoryUrl = "http://localhost:3000";
+
 
 export default{
     directoryUrl,
@@ -76,5 +94,7 @@ export default{
     setConnected,
     getConnected,
     dropConnected,
-    bringToFront
+    bringToFront,
+    OpenError,
+    ResolveError
 };
