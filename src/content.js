@@ -29,7 +29,7 @@ const returnTimeout = (1000 * 60 * 2);
  //listen for return messages for api calls
  port.onMessage.addListener(msg => {
     //is there a returnlistener registered for the event?
-    let listener = returnListeners[msg.topic].listener;
+    let listener = returnListeners[msg.topic] ? returnListeners[msg.topic].listener : null;
     if (listener){
         console.log("Content: listener", msg);
         listener.call(port,msg);
@@ -114,7 +114,7 @@ document.addEventListener('FDC3:findIntent',e => {
             }
             
             //set the intent metadata...
-            document.dispatchEvent(new CustomEvent("FDC3:returnFindIntent", {detail:{data: r}})); 
+            document.dispatchEvent(new CustomEvent("FDC3:returnFindIntent", {detail:{data:r}})); 
                     
         }
     });
@@ -184,7 +184,7 @@ port.onMessage.addListener(msg => {
     if (msg.topic === "environmentData"){
         console.log(msg.data);
         //if there is manifest content, wire up listeners if intents and context metadata are there
-        let mani = msg.data.directory.manifestContent;
+        let mani = msg.data.directory ? msg.data.directory.manifestContent : null;
         //set globals
         contentManifest = mani;
         if (mani){
