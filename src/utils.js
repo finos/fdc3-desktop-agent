@@ -1,7 +1,7 @@
 import channels from "./system-channels";
 
 //const directoryUrl = "http://brokenfdc3.com";
-const directoryUrl = "http://appd.kolbito.com";
+const directoryUrl = "https://appd.kolbito.com";
 //const directoryUrl = "http://localhost:3000";
 
 /***
