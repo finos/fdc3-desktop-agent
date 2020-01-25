@@ -151,9 +151,7 @@ chrome.runtime.onConnect.addListener(function(port) {
                  wrapListener(msg, port, (obj, r) => {
                     return obj;
                 });
-
                 break;
- 
              case "joinChannel":
                 return listeners.joinChannel(msg, port).then(r => {return true;});
                 break;  

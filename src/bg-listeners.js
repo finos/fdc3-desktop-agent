@@ -71,9 +71,8 @@ const open = async (msg, port) => {
                     if (msg.data.context){
                         setPendingContext(r.start_url, msg.data.context);
                     }
-                    //window.open(r.start_url,"_blank");
                     chrome.tabs.create({url:r.start_url},tab =>{
-                        resolve(tab.id);
+                        resolve({result:true, tab:tab.id});
                     });
                     //wait for the window to connect...
                     //todo: handle context, templates, etc
@@ -294,10 +293,13 @@ const raiseIntent = async (msg, port) => {
                                 
                                     start_url = template;
                                 }
-                                let win = window.open(start_url,"_blank");
+                                //let win = window.open(start_url,"_blank");
+                                chrome.tabs.create({url:start_url},tab =>{
+                                    resolve({result:true, tab:tab.id});
+                                });
                                 //send the context - if the default start_url was used...
                                 //get the window/tab...
-                                resolve({result:true});
+                               // resolve({result:true});
                         }
 
                         catch (err){
@@ -418,14 +420,18 @@ const resolveIntent = async (msg, port) => {
                     
                         start_url = template;
                     }
-                    let win = window.open(start_url,"_blank");
+                    //let win = window.open(start_url,"_blank");
                     
                     //set pending intent for the url...
                     setPendingIntent(start_url, msg.intent, msg.context);
+
+                    chrome.tabs.create({url:start_url},tab =>{
+                        resolve({result:true, tab:tab.id});
+                    });
                     //keep array of pending, id by url,  store intent & context, timestamp
                     //when a new window connects, throw out anything more than 2 minutes old, then match on url
                     //when a match is found, remove match from the list, send intent w/context, and bring to front
-                    resolve(true);
+                    //resolve(true);
         
                 }
             });
