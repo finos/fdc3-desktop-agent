@@ -317,3 +317,8 @@ class FDC3ChannelPicker extends HTMLElement {
 };
 
 _doFdc3();
+
+//look for onFDC3 function set by the window...
+if (onFDC3){
+    onFDC3.call();
+}
