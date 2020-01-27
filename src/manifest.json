@@ -1,7 +1,7 @@
 {
     "name": "FDC3 Agent",
-    "version": "1.0",
-    "description": "Build an Extension!",
+    "version": "0.1",
+    "description": "FDC3 Desktop Agent implementation.",
     "manifest_version": 2,
 
     "background": {
