@@ -1,6 +1,8 @@
 # FDC3 desktop-agent
 This project is a Chrome Extension implementation of an FDC3 Desktop Agent.  Its purpose is to provide a quick and easy way to get started with FDC3 as an app provider and an open source reference implementation of a desktop agent.  Since the extension allows you to just use Chrome, you can plug in your own web apps and even use some common apps on the web as well as some that have been published to demo this project. 
 
+__Please note:__ This project is not intended to be an entire financial desktop solution, it does not address windowing, native integration, or integration with other desktop agents.  
+
 ## features
 
 This project aims to create a full featured FDC3 implementation.  These features include:
@@ -40,17 +42,40 @@ Here are some examples of the extension in actions
 ![image](/images/intent-resolution.png)
 
 
-
 ## getting the extension
 The extension is not published with Chrome. To use it, you will need to get the project and install it locally.
 
-### get the pre-built project
-
 ### clone and build the project locally
+
+- git clone this repo
+- npm i
+- npm run build
 
 ### install the extension
 
-## working with the code
+- In Chrome, got to [chrome://extensions](chrome://extensions)
+- Click the *Load unpacked* button in the top left of the screen
+- Select the *desktop-agent/dist* directory from your local desktop-agent setup
+
+To try out changes, just rebuild with npm and refresh the extension from the extensions page.
+
+## using the extension with apps
+The extension will automatically inject the FDC3 API into every Chrome tab.  The API is documented # [https://fdc3.finos.org](https://fdc3.finos.org).  
+
+### waiting for the api
+The readiness of the api is non-determistic and depending on your app, the api may not be injected before your first script runs.  To prevent issues, the extension will try to call a global function named *onFDC3* when it first loads.  It is recommended that if you are setting up fdc3 context and intent handlers on load of your app, that you use this function.
+
+For example:
+
+```js
+const onFDC3 = () => {
+    fdc3.addContextListener(myListener);
+};
+```
+
+
+## working with the extension code
+
 The project consists of these layers:
 * background - contains most of the business logic for the desktop agent and the connection to the appD backend
 * content - this establishes the connection to the background script and the individual app windows, handles UI footprint like resolver dialogues, and injects the actual fdc3 api into each window
