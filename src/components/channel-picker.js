@@ -105,8 +105,9 @@ class FDC3ChannelPicker extends HTMLElement {
          
           getSelectedChannel().then(chan => {
             console.log("selected channel : " + chan);
-            this.selectItem({target:{id:chan}});
-
+            if (chan){
+                this.selectItem({target:{id:chan}}); 
+            }
             if (!this.closed){
                 this.toggle();
             }

@@ -359,6 +359,7 @@ let resolver = null;
             sendResponse(document.title);
         }
         else if (request.message === "popup-get-current-channel"){
+            console.log("currentChannel", currentChannel);
             sendResponse(currentChannel);
         }
         else if (request.message === "popup-join-channel"){

@@ -436,7 +436,7 @@ const resolveIntent = async (msg, port) => {
 
 const joinChannel = (msg, port) => {
     return new Promise((resolve, reject) => {
-        console.log(port); 
+        console.log("join channel", msg, port); 
         let chan = msg.data.channel;
         let _id = (port.sender.id + port.sender.tab.id);
         let c = utils.getConnected(_id);
