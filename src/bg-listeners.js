@@ -451,10 +451,13 @@ const joinChannel = (msg, port) => {
         c.channel = chan;
         tabChannels[(port.sender.tab.id + "")] = chan;
         //set the badge state
-        chrome.browserAction.setBadgeText({text:"+",tabId:port.sender.tab.id});
+        let bText = chan === "default" ? "" : "+";
+        chrome.browserAction.setBadgeText({text:bText,tabId:port.sender.tab.id});
+        
         let channels = utils.getSystemChannels();
         let selectedChannel = channels.find(_chan => {return _chan.id === chan;});
-        chrome.browserAction.setBadgeBackgroundColor({color:selectedChannel.visualIdentity.color,
+        let color = selectedChannel.visualIdentity ? selectedChannel.visualIdentity.color : "";
+        chrome.browserAction.setBadgeBackgroundColor({color:color,
             tabId:port.sender.tab.id});
          //push current channel context 
         port.postMessage({topic:"context", data:{context:contexts[chan][0]}});
