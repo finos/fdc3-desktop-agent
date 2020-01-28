@@ -1,6 +1,6 @@
 import "./components/channel-picker";
 import utils from "./utils.js";
-import autoComplete from "./autoComplete";
+import autoComplete from "./components/autoComplete";
 
 new autoComplete({
     data: {                              // Data src [Array, Function, Async] | (REQUIRED)

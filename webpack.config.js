@@ -28,7 +28,11 @@ module.exports = {
       { from: './src/*.+(html|png|json|css|svg)', 
         to: path.resolve(__dirname, 'dist'),
         flatten:true
-    }
+    },
+    { from: './src/components/*.+(html|png|json|css|svg)', 
+    to: path.resolve(__dirname, 'dist/components'),
+    flatten:true
+}
       
     ]),
   ]
