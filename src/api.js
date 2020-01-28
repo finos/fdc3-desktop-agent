@@ -1,25 +1,32 @@
 function _doFdc3(){
 
-const wireMethod = (method, detail) => {
-    return new Promise((resolve, reject) => {
-        const ts = Date.now();
-        const eventId = `${method}_${ts}`;
-
-        document.addEventListener(`FDC3:return_${eventId}`,(evt)=>{
-            console.log(`API: return for ${eventId}`,evt);
-            if (evt.detail.result){
-                resolve(evt.detail);
-            }
-            else {
-                reject(evt.detail);
-            }           
-        },{once:true});
-        detail.eventId = eventId;
-        detail.ts = ts;
-        console.log(`API: dispatch for ${method}`, detail);
+const wireMethod = (method, detail, isVoid) => {
+    const ts = Date.now();
+    const eventId = `${method}_${ts}`;
+    detail.eventId = eventId;
+    detail.ts = ts;
+    console.log(`API: dispatch for ${method}`, detail);
+    if (isVoid){      
         document.dispatchEvent(new CustomEvent(`FDC3:${method}`,{detail:detail}));
+    }
+    else {
+        return new Promise((resolve, reject) => {
+           
+            document.addEventListener(`FDC3:return_${eventId}`,(evt)=>{
+                console.log(`API: return for ${eventId}`,evt);
+                if (evt.detail.result){
+                    resolve(evt.detail);
+                }
+                else {
+                    reject(evt.detail);
+                }           
+            },{once:true});
+            
+            
+            document.dispatchEvent(new CustomEvent(`FDC3:${method}`,{detail:detail}));
 
-    });
+        });
+    }
 };
 
 window.fdc3 = {
@@ -29,7 +36,8 @@ window.fdc3 = {
         return wireMethod("open", {name:name, context:context});
     },
     broadcast:function(context){
-        return wireMethod("broadcast", {context:context});
+        //void
+        wireMethod("broadcast", {context:context}, true);
     },
 
     raiseIntent:function(intent, context){
@@ -146,10 +154,13 @@ window.fdc3 = {
 
 
 //look for onFDC3 function set by the window...
-if (onFDC3){
-    onFDC3.call();
+try{
+    if (onFDC3){
+        onFDC3.call();
+    }
+} catch (e) {
+    console.log("onFDC3 not set");
 }
-
 };
 
 _doFdc3();

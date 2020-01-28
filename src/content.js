@@ -57,21 +57,25 @@ function getTabTitle(tabId){
     });  
 }
 
-const wireTopic = (topic, cb) => {
+const wireTopic = (topic, config) => {
     
     document.addEventListener(`FDC3:${topic}`,e => {
-        
+        let cb = config ? config.cb : null;
+        let isVoid = config ? config.isVoid : null;
+
         //get eventId and timestamp from the event 
-        console.log(`Content: wireTopic.  topic = '${topic}', event`,e);
-        let eventId = e.detail.eventId;
-        returnListeners[eventId] = {
-            ts:e.ts,
-            listener:function(msg, port){
-            console.log(`Content: dispatch return event for ${eventId}`,e);    
-            document.dispatchEvent(new CustomEvent(`FDC3:return_${eventId}`, {detail:msg.data})); }
-        };
-        if (cb){
-            cb.call(this,e);
+        if (! isVoid){
+            console.log(`Content: wireTopic.  topic = '${topic}', event`,e);
+            let eventId = e.detail.eventId;
+            returnListeners[eventId] = {
+                ts:e.ts,
+                listener:function(msg, port){
+                console.log(`Content: dispatch return event for ${eventId}`,e);    
+                document.dispatchEvent(new CustomEvent(`FDC3:return_${eventId}`, {detail:msg.data})); }
+            };
+            if (cb){
+                cb.call(this,e);
+            }
         }
         //if  background script isn't ready yet, queue these messages...
         let msg = {"topic":topic, "data": e.detail};
@@ -87,10 +91,11 @@ const wireTopic = (topic, cb) => {
  
  //listen for FDC3 events
  //boilerplate topics
- const topics = ["open","broadcast","raiseIntent","addContextListener","addIntentListener","getSystemChannels"]
+ const topics = ["open","raiseIntent","addContextListener","addIntentListener","getSystemChannels"]
  topics.forEach(t => {wireTopic(t);});
  //set the custom ones...
- wireTopic("joinChannel",e => { currentChannel = e.detail.channel;});
+ wireTopic("joinChannel",{cb:(e) => { currentChannel = e.detail.channel;}});
+ wireTopic("broadcast",{isVoid:true});
 
 document.addEventListener("FDC3:resolver-close", e => {
     console.log("close resolver");
