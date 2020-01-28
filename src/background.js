@@ -14,7 +14,7 @@ listeners.initContextChannels(utils.getSystemChannels());
         - send environment data to the app (directory data, channels, etc)
 
 */
-chrome.runtime.onConnect.addListener(function(port) {
+chrome.runtime.onConnect.addListener( async function(port) {
     
     let app_url = new URL(port.sender.url);
     let app_id = (port.sender.id + port.sender.tab.id);
@@ -25,72 +25,62 @@ chrome.runtime.onConnect.addListener(function(port) {
     //let dMatch = [];
     //look origin up in directory...
     try {
-        fetch(`${utils.directoryUrl}/apps/search?origin=${app_url.origin}`).then(_r =>{ 
-            _r.json().then(data => {
-                //see if there was an exact match on origin
-                //if not (either nothing or ambiguous), then let's treat this as dynamic - i.e. no directory match
-                let entry = null;
-                if (data.length === 1){
-                    entry = data[0];
+        let _r = await fetch(`${utils.directoryUrl}/apps/search?origin=${app_url.origin}`);
+        let data = await  _r.json();
+        //see if there was an exact match on origin
+        //if not (either nothing or ambiguous), then let's treat this as dynamic - i.e. no directory match
+        let entry = null;
+        if (data.length === 1){
+            entry = data[0];
+    
+            console.log("entry",entry);
+            //if there is an exact match - we're going to try fetch the manifest 
             
-                    console.log("entry",entry);
-                    //if there is an exact match - we're going to try fetch the manifest 
-                    
-                    if (entry.manifest){
-                        //fetch and bundle environmnet data for the app: app manifest, etc
-                        fetch(entry.manifest).then(mR => {
+            if (entry.manifest){
+                //fetch and bundle environmnet data for the app: app manifest, etc
+                fetch(entry.manifest).then(mR => {
 
-                            mR.json().then(mD => {
-                                entry.manifestContent = mD;
-                                //port.directoryData = entry;
-                                envD.directory = entry;
-                                port.postMessage({topic:"environmentData", 
-                                data:envD});
-                            });
-                        });
-                    }
-                    else {
-                    // port.directoryData = entry;
+                    mR.json().then(mD => {
+                        entry.manifestContent = mD;
                         envD.directory = entry;
-                        port.postMessage({topic:"environmentData", data:envD});
-                    }
-                    
-                    
-                    utils.setConnected(app_id,{port:port, directoryData:entry});
-                }
-                else {
-                    if (data.length === 0){
-                        console.log("No match appd entries found");
-                    } else {
-                        console.log(`Ambiguous match - ${data.length} items found.`);
-                    }
-                    port.postMessage({topic:"environmentData", 
-                                data:envD});
-                    
-                    utils.setConnected(app_id,{port:port, directoryData:null});
-
-                }
-            }, e => {
-                console.log(`app data could not be parsed for origin ${app_url.origin}`);
-                port.postMessage({topic:"environmentData", 
-                                data:envD});
-                    
-                    utils.setConnected(app_id,{port:port, directoryData:null});
-            });
-        }, _r => {
-            console.log(`app data not found for origin ${app_url.origin}`);
+                        utils.setConnected(app_id,{port:port, directoryData:entry});
+                        port.postMessage({topic:"environmentData", 
+                        data:envD});
+                    });
+                });
+            }
+            else {
+           
+                envD.directory = entry;
+                utils.setConnected(app_id,{port:port, directoryData:entry});
+                port.postMessage({topic:"environmentData", data:envD});
+            }
+            
+            
+            
+        }
+        else {
+            if (data.length === 0){
+                console.log("No match appd entries found");
+            } else {
+                console.log(`Ambiguous match - ${data.length} items found.`);
+            }
+            utils.setConnected(app_id,{port:port, directoryData:null});
             port.postMessage({topic:"environmentData", 
-                                data:envD});
-                    
-                    utils.setConnected(app_id,{port:port, directoryData:null});
-        });
+                        data:envD});
+            
+            
+
+        }
+
+    
     }
     catch (e){
         console.log(`app data not found for origin ${app_url.origin}`);
+        utils.setConnected(app_id,{port:port, directoryData:null});
         port.postMessage({topic:"environmentData", 
                                 data:envD});
-                    
-                    utils.setConnected(app_id,{port:port, directoryData:null});
+                         
     }
 
     

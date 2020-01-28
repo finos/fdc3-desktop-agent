@@ -1,15 +1,14 @@
 import channels from "./system-channels";
 
- //inject the FDC3 API
- let s = document.createElement('script');
- s.src = chrome.extension.getURL('api.js');
- s.onload = function() {
-     this.parentNode.removeChild(this);
- };
- (document.head||document.documentElement).appendChild(s);
+
 
 //establish comms with the background script 
- let port = chrome.runtime.connect({name: "fdc3"});
+let port = chrome.runtime.connect({name: "fdc3"});
+//flag to indicate the background script is ready for fdc3!
+let connected = false;
+//queue of pending events - accumulate until the background is ready
+const eventQ = [];
+
 
 /**
  * return listeners
@@ -59,6 +58,7 @@ function getTabTitle(tabId){
 }
 
 const wireTopic = (topic, cb) => {
+    
     document.addEventListener(`FDC3:${topic}`,e => {
         
         //get eventId and timestamp from the event 
@@ -68,13 +68,21 @@ const wireTopic = (topic, cb) => {
             ts:e.ts,
             listener:function(msg, port){
             console.log(`Content: dispatch return event for ${eventId}`,e);    
-           document.dispatchEvent(new CustomEvent(`FDC3:return_${eventId}`, {detail:msg.data})); }
+            document.dispatchEvent(new CustomEvent(`FDC3:return_${eventId}`, {detail:msg.data})); }
         };
         if (cb){
             cb.call(this,e);
         }
-        port.postMessage({topic:topic, "data": e.detail});   
+        //if  background script isn't ready yet, queue these messages...
+        let msg = {"topic":topic, "data": e.detail};
+        if (!connected){
+            eventQ.push(msg);
+        }
+        else {
+            port.postMessage(msg);   
+        }
     }); 
+    
 };
  
  //listen for FDC3 events
@@ -182,11 +190,19 @@ document.addEventListener('FDC3:findIntentsByContext',e => {
 
 port.onMessage.addListener(msg => {
     if (msg.topic === "environmentData"){
-        console.log(msg.data);
+        console.log("connected!", msg.data, eventQ);
+        //we're now ready for general fdc3 comms with the background
+        connected = true;
+        //if there is a queue of pending events, then act on them, these will mostly be addContext/addIntent Listener calls
+        eventQ.forEach(e => {
+            port.postMessage(e); 
+        });
+
         //if there is manifest content, wire up listeners if intents and context metadata are there
         let mani = msg.data.directory ? msg.data.directory.manifestContent : null;
         //set globals
         contentManifest = mani;
+
         if (mani){
             if (mani.intents){
                 //iterate through the intents, and set listeners
@@ -206,9 +222,7 @@ port.onMessage.addListener(msg => {
         }
         if (msg.data.currentChannel){
             currentChannel = msg.data.currentChannel;
-            port.postMessage({topic:"joinChannel", "data": {channel:currentChannel}}); 
-            
-            
+            port.postMessage({topic:"joinChannel", "data": {channel:currentChannel}});      
         }
     }
    else  if (msg.topic === "context"){
@@ -256,6 +270,7 @@ port.onMessage.addListener(msg => {
         }));
     }
     else if (msg.topic === "intent") {
+        
         //check for handlers at the content script layer (automatic handlers) - if not, dispatch to the API layer...
         if (_intentHandlers.indexOf(msg.data.intent) > -1 && contentManifest){
             let intentData = contentManifest.intents.filter(i => {
@@ -530,3 +545,11 @@ let resolver = null;
         return root;
     }
   
+
+  //inject the FDC3 API
+  let s = document.createElement('script');
+  s.src = chrome.extension.getURL('api.js');
+  s.onload = function() {
+      this.parentNode.removeChild(this);
+  };
+  (document.head||document.documentElement).appendChild(s);

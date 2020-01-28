@@ -68,10 +68,11 @@ const open = async (msg, port) => {
                 const r = await result.json();
                 //todo: get the manifest...
                 if (r && r.start_url){
-                    if (msg.data.context){
-                        setPendingContext(r.start_url, msg.data.context);
-                    }
+                   
                     chrome.tabs.create({url:r.start_url},tab =>{
+                        if (msg.data.context){
+                            setPendingContext(tab.id, msg.data.context);
+                        }
                         resolve({result:true, tab:tab.id});
                     });
                     //wait for the window to connect...
@@ -98,7 +99,7 @@ const open = async (msg, port) => {
 const addContextListener = (msg, port) => {
     return new Promise((resolve, reject) => {
         let c = utils.getConnected(port.sender.id + port.sender.tab.id);
-        let channel = c.channel ? c.channel : "default";
+        let channel = (c && c.channel) ? c.channel : "default";
         contextListeners[channel].push((port.sender.id + port.sender.tab.id));
         
         if (pending_contexts.length > 0){
@@ -111,16 +112,13 @@ const addContextListener = (msg, port) => {
             console.log("pending contexts", pending_contexts);
             pending_contexts.forEach((pContext, index) => {
                 //removing trainling slashes from the sender.url...
-                let pUrl = port.sender.url;
-                if (pUrl.charAt(pUrl.length -1) === "/"){
-                    pUrl = pUrl.substr(0,port.sender.url.length -1);
-                }
-                if (pContext.url === pUrl){
+                let portTabId = port.sender.tab.id;
+                if (pContext.tabId === portTabId){
                     console.log("applying pending context", pContext);    
                     //refactor with other instances of this logic
-                    port.postMessage({"name":"context", "data":{"context": pContext.context}});    
+                    port.postMessage({"topic":"context", "data":{"context": pContext.context}});    
                     utils.bringToFront(port.sender.tab); 
-                    //remove the applied intent
+                    //remove the applied context
                     pending_intents.splice(index,1);
                 }
             });
@@ -133,16 +131,17 @@ const addContextListener = (msg, port) => {
 };
 
 
-//keep array of pending, id by url,  store intent & context, timestamp
+//keep array of pending, id of the tab,  store intent & context, timestamp
 //when a new window connects, throw out anything more than 2 minutes old, then match on url
 //when a match is found, remove match from the list, send intent w/context, and bring to front
 
-const setPendingIntent =function(url, intent, context){
-  pending_intents.push({ts:Date.now(), url:url, intent:intent, context:context});
+const setPendingIntent =function(tabId, intent, context){
+console.log("setPendingIntent",tabId, intent, context);
+  pending_intents.push({ts:Date.now(), tabId:tabId, intent:intent, context:context});
 };
 
-const setPendingContext =function(url, context){
-    pending_contexts.push({ts:Date.now(), url:url, context:context});
+const setPendingContext =function(tabId, context){
+    pending_contexts.push({ts:Date.now(), tabId:tabId, context:context});
   };
 
 const addIntentListener = (msg, port) => {
@@ -152,22 +151,22 @@ const addIntentListener = (msg, port) => {
         //check for pending intents
 
         if (pending_intents.length > 0){
+            
             //first cleanup anything old
             let n = Date.now();
+            
             pending_intents = pending_intents.filter(i => {
-                return n - i.ts < pendingIntentTimeout;
+                return (n - i.ts) < pendingIntentTimeout;
             });
-            //next, match on url and intent
-            let intent = pending_intents.forEach((pIntent, index) => {
+            //next, match on tab and intent
+            pending_intents.forEach((pIntent, index) => {
                 //removing trainling slashes from the sender.url...
-                let pUrl = port.sender.url;
-                if (pUrl.charAt(pUrl.length -1) === "/"){
-                    pUrl = pUrl.substr(0,port.sender.url.length -1);
-                }
-                if (pIntent.url === pUrl && pIntent.intent === name){
+                let portTabId = port.sender.tab.id;
+                
+                if (pIntent.tabId === portTabId && pIntent.intent === name){
                     console.log("applying pending intent", pIntent);    
                     //refactor with other instances of this logic
-                    port.postMessage({"name":"intent", "data":{"intent":pIntent.intent, "context": pIntent.context}});    
+                    port.postMessage({"topic":"intent", "data":{"intent":pIntent.intent, "context": pIntent.context}});    
                     utils.bringToFront(port.sender.tab); 
                     //remove the applied intent
                     pending_intents.splice(index,1);
@@ -420,12 +419,10 @@ const resolveIntent = async (msg, port) => {
                     
                         start_url = template;
                     }
-                    //let win = window.open(start_url,"_blank");
-                    
-                    //set pending intent for the url...
-                    setPendingIntent(start_url, msg.intent, msg.context);
 
                     chrome.tabs.create({url:start_url},tab =>{
+                        //set pending intent for the tab...
+                        setPendingIntent(tab.id, msg.intent, msg.context);
                         resolve({result:true, tab:tab.id});
                     });
                     //keep array of pending, id by url,  store intent & context, timestamp
