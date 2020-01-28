@@ -2,6 +2,7 @@ import channels from "./system-channels";
 
 
 
+
 //establish comms with the background script 
 let port = chrome.runtime.connect({name: "fdc3"});
 //flag to indicate the background script is ready for fdc3!
@@ -91,7 +92,7 @@ const wireTopic = (topic, config) => {
  
  //listen for FDC3 events
  //boilerplate topics
- const topics = ["open","raiseIntent","addContextListener","addIntentListener","getSystemChannels"]
+ const topics = ["open","raiseIntent","addContextListener","addIntentListener"];
  topics.forEach(t => {wireTopic(t);});
  //set the custom ones...
  wireTopic("joinChannel",{cb:(e) => { currentChannel = e.detail.channel;}});
@@ -104,7 +105,13 @@ document.addEventListener("FDC3:resolver-close", e => {
         resolver.style.display = "none";
     }
 });
- //rationalize these later...
+
+//systemchannels are constant and we don't have to go to the background script, so handle directly
+document.addEventListener("FDC3:getSystemChannels", e => {
+    document.dispatchEvent(new CustomEvent("FDC3:returnSystemChannels",{detail:{data:channels} } ));
+});
+
+
 document.addEventListener('FDC3:findIntent',e => {
 // returns a single AppIntent:
 // {
