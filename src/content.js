@@ -90,7 +90,7 @@ const wireTopic = (topic, cb) => {
  const topics = ["open","broadcast","raiseIntent","addContextListener","addIntentListener","getSystemChannels"]
  topics.forEach(t => {wireTopic(t);});
  //set the custom ones...
- wireTopic("joinChannel",e => { currentChannel = e.detail.data.channel;});
+ wireTopic("joinChannel",e => { currentChannel = e.detail.channel;});
 
 document.addEventListener("FDC3:resolver-close", e => {
     console.log("close resolver");
@@ -227,42 +227,44 @@ port.onMessage.addListener(msg => {
     }
    else  if (msg.topic === "context"){
        //check for handlers at the content script layer (automatic handlers) - if not, dispatch to the API layer...
-       if (_contextHandlers.indexOf(msg.data.context.type) > -1 && contentManifest){
-        let contextMeta = contentManifest.contexts.find(i => {
-            return i.type === msg.data.context.type;
-        });
-        //set paramters
-        let ctx = msg.data.context;
-        let params = {};
-       
-            Object.keys(contentManifest.params).forEach(key =>{ 
-                let param = contentManifest.params[key];
-                if (ctx.type === param.type){
-                    if (param.key && ctx[param.key]){
-                        params[key] = ctx[param.key];
-                    }
-                    else if (param.id && ctx.id[param.id]){
-                        params[key]  = ctx.id[param.id]; 
-                    }
-                }
+       if (msg.data && msg.data.context){
+        if (_contextHandlers.indexOf(msg.data.context.type) > -1 && contentManifest){
+            let contextMeta = contentManifest.contexts.find(i => {
+                return i.type === msg.data.context.type;
             });
+            //set paramters
+            let ctx = msg.data.context;
+            let params = {};
         
-        //eval the url
-        let template = contentManifest.templates[contextMeta.template];
-        Object.keys(params).forEach(key => {
-            let sub = "${" + key + "}";
-            let val = params[key];
-            while (template.indexOf(sub) > -1){
-                template = template.replace(sub,val);
-            }
+                Object.keys(contentManifest.params).forEach(key =>{ 
+                    let param = contentManifest.params[key];
+                    if (ctx.type === param.type){
+                        if (param.key && ctx[param.key]){
+                            params[key] = ctx[param.key];
+                        }
+                        else if (param.id && ctx.id[param.id]){
+                            params[key]  = ctx.id[param.id]; 
+                        }
+                    }
+                });
+            
+            //eval the url
+            let template = contentManifest.templates[contextMeta.template];
+            Object.keys(params).forEach(key => {
+                let sub = "${" + key + "}";
+                let val = params[key];
+                while (template.indexOf(sub) > -1){
+                    template = template.replace(sub,val);
+                }
 
-        });
-        //don't reload if they are the same...
-        if (window.location.href !== template){
-            window.location.href = template; 
+            });
+            //don't reload if they are the same...
+            if (window.location.href !== template){
+                window.location.href = template; 
+            }
+            //focus the actual tab
+            window.focus();
         }
-        //focus the actual tab
-        window.focus();
     }
 
         document.dispatchEvent(new CustomEvent("FDC3:context",{
