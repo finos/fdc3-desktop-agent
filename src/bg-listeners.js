@@ -252,7 +252,7 @@ const raiseIntent = async (msg, port) => {
                 if (r[0].type === "window"){
                     r[0].details.port.postMessage({topic:"intent", data:msg.data});
                     utils.bringToFront(r[0].details.port);
-                    resolve(true);
+                    resolve({result:true, source:`${r[0].details.port.sender.id}${r[0].details.port.sender.tab.id}`, version:"1.0"});
                 } else if (r[0].type === "directory"){
                     console.log("directory ", r[0].details);
                     let start_url = r[0].details.directoryData.start_url;
@@ -294,7 +294,7 @@ const raiseIntent = async (msg, port) => {
                                 }
                                 //let win = window.open(start_url,"_blank");
                                 chrome.tabs.create({url:start_url},tab =>{
-                                    resolve({result:true, tab:tab.id});
+                                    resolve({result:true, source:`${port.sender.id}${tab.id}`, version:"1.0", tab:tab.id});
                                 });
                                 //send the context - if the default start_url was used...
                                 //get the window/tab...
@@ -334,7 +334,7 @@ const raiseIntent = async (msg, port) => {
                     if (msg.topic === eventId){
                         
                         let r = await resolveIntent(msg, port);
-                        resolve({result:true, tab:r});
+                        resolve(r);
                     }
                 });
                 chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
@@ -366,19 +366,21 @@ const raiseIntent = async (msg, port) => {
 const resolveIntent = async (msg, port) => {
     return new Promise(async (resolve, reject) => {
         //find the app to route to
-        if (msg.selected.type === "window"){
+        const sType = msg.selected.type;
+        const sPort = msg.selected.details.port;
+        if (sType === "window"){
             let winList = getIntentListeners(msg.intent);
             let win = winList.find(item => {
-                return item === msg.selected.details.port.sender.id + msg.selected.details.port.sender.tab.id;
+                return item === sPort.sender.id + sPort.sender.tab.id;
             });
             if (win){
                 utils.getConnected(win).port.postMessage({topic:"intent", data:{intent:msg.intent, context: msg.context}});    
                 utils.bringToFront(win); 
-                resolve({result:true, tab:msg.selected.details.port.sender.tab.id});
+                resolve({result:true, source:`${sPort.sender.id}${sPort.sender.tab.id}`, version:"1.0", tab:sPort.sender.tab.id});
             }
             
         }
-        else if (msg.selected.type === "directory"){
+        else if (sType === "directory"){
             let mR = await fetch(msg.selected.details.directoryData.manifest);
             let mD = await mR.json();
                     let start_url = mD.start_url;
@@ -423,7 +425,7 @@ const resolveIntent = async (msg, port) => {
                     chrome.tabs.create({url:start_url},tab =>{
                         //set pending intent for the tab...
                         setPendingIntent(tab.id, msg.intent, msg.context);
-                        resolve({result:true, tab:tab.id});
+                        resolve({result:true, tab:tab.id, source:`${port.sender.id}${tab.id}`, version:"1.0"});
                     });
                     //keep array of pending, id by url,  store intent & context, timestamp
                     //when a new window connects, throw out anything more than 2 minutes old, then match on url

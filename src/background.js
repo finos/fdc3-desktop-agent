@@ -99,8 +99,14 @@ chrome.runtime.onConnect.addListener( async function(port) {
         let r = null;
             try {
                 let _r = await listeners[msg.topic].call(this, msg, port);
+                console.log("wrap listener",_r);
+                if (decorator){
+                    r = decorator.call({result:true}, _r);
+                }
+                else {
+                  r = _r;  
+                }
                 
-                r = decorator.call({result:true}, _r);
             }
             catch (err){
                 console.log("error", err);
