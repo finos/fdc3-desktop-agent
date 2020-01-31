@@ -43,29 +43,27 @@ chrome.runtime.onConnect.addListener( async function(port) {
             entry = data[0];
     
             console.log("entry",entry);
-            //if there is an exact match - we're going to try fetch the manifest 
-            
+            //if there is an exact match - we're going to try fetch the manifest   
             if (entry.manifest){
                 //fetch and bundle environmnet data for the app: app manifest, etc
-                fetch(entry.manifest).then(mR => {
-
-                    mR.json().then(mD => {
+                let mR = await fetch(entry.manifest);
+                if (mR){
+                    let mD = await mR.json();
+                    if (mD){
                         entry.manifestContent = mD;
                         envD.directory = entry;
                         utils.setConnected(app_id,{port:port, directoryData:entry});
                         port.postMessage({topic:"environmentData", 
                         data:envD});
-                    });
-                });
+                    }
+                }
             }
             else {
            
                 envD.directory = entry;
                 utils.setConnected(app_id,{port:port, directoryData:entry});
                 port.postMessage({topic:"environmentData", data:envD});
-            }
-            
-            
+            }        
             
         }
         else {
@@ -77,11 +75,8 @@ chrome.runtime.onConnect.addListener( async function(port) {
             utils.setConnected(app_id,{port:port, directoryData:null});
             port.postMessage({topic:"environmentData", 
                         data:envD});
-            
-            
-
+             
         }
-
     
     }
     catch (e){
@@ -89,9 +84,8 @@ chrome.runtime.onConnect.addListener( async function(port) {
         utils.setConnected(app_id,{port:port, directoryData:null});
         port.postMessage({topic:"environmentData", 
                                 data:envD});
-                         
+                        
     }
-
     
     port.onDisconnect.addListener(function(){
         console.log("disconnect",port);
@@ -130,7 +124,7 @@ chrome.runtime.onConnect.addListener( async function(port) {
 
     port.onMessage.addListener(async function(msg) {
        
-     
+        let r = null;
 
         switch (msg.topic){
             case "open":
@@ -141,10 +135,12 @@ chrome.runtime.onConnect.addListener( async function(port) {
                  
                 break;
             case "addContextListener":
-                return listeners.addContextListener(msg, port).then(r => {return true;});
+                r = await listeners.addContextListener(msg, port);
+                return r;
                 break;
             case "addIntentListener":
-                return listeners.addIntentListener(msg, port).then(r => {return true;});
+                r = await listeners.addIntentListener(msg, port);
+                return r;
                 break;
              case "broadcast":
                 wrapListener(msg, port,(obj, r) => {
@@ -158,21 +154,21 @@ chrome.runtime.onConnect.addListener( async function(port) {
                 });
                 break;
              case "joinChannel":
-                return listeners.joinChannel(msg, port).then(r => {return true;});
+                r = await listeners.joinChannel(msg, port);
+                return r;
                 break;  
             case "getTabTitle":
-                return listeners.getTabTitle(msg, port).then(r => {return true;});
+                r = await listeners.getTabTitle(msg, port);
+                return r;
                 break;
             case "findIntent":
-                return listeners.findIntent(msg, port).then(r => {
-                    port.postMessage({topic:"returnFindIntent",data:r, intent:msg.intent, context:msg.context});    
-                });
+                r = await listeners.findIntent(msg, port);
+                port.postMessage({topic:"returnFindIntent",data:r, intent:msg.intent, context:msg.context});    
                 break;
             case "findIntentsByContext":
-                    return listeners.findIntentsByContext(msg, port).then(r => {
-                        port.postMessage({topic:"returnFindIntentsByContext",data:r, context:msg.context});    
-                    });
-                    break;
+                r = await listeners.findIntentsByContext(msg, port);
+                port.postMessage({topic:"returnFindIntentsByContext",data:r, context:msg.context});    
+                break;
             default:
                 console.log("no handler found for method", msg.topic);
         }
