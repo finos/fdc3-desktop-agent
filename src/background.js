@@ -1,3 +1,11 @@
+/**
+ * Desktop Agent Background script
+ * this is the singleton controller for most fdc3 business logic including:
+ *  - interfacing with the app directory
+ *  - managing channels and routing context data
+ *  - resolving intents
+ *  
+ */
 import utils from "./utils";
 import listeners from "./bg-listeners";
 
@@ -6,12 +14,13 @@ listeners.initContextChannels(utils.getSystemChannels());
 
 
 /*
-    When an app (new window/tab) connects to the FDC3 service:
+    When an app (i.e. a new tab) connects to the FDC3 service:
         - determine if it has a corresponding entry in the app directory
             - if it is in appD, fetch it's appD entry plus manifest
-        - add the window reference plus any appD data to the "connected" dictionary
+        - add the tab reference plus any appD data to the "connected" dictionary
         - add event listeners for the app
         - send environment data to the app (directory data, channels, etc)
+        - for the app, reciept of the environment data will signal that the background script is ready to recieve events from it
 
 */
 chrome.runtime.onConnect.addListener( async function(port) {
@@ -101,7 +110,7 @@ chrome.runtime.onConnect.addListener( async function(port) {
                 let _r = await listeners[msg.topic].call(this, msg, port);
                 console.log("wrap listener",_r);
                 if (decorator){
-                    r = decorator.call({result:true}, _r);
+                    r = decorator.call( {result:true}, _r);
                 }
                 else {
                   r = _r;  

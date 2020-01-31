@@ -1,3 +1,7 @@
+/**
+ * shared functions and constants
+ */
+
 import channels from "./system-channels";
 
 //const directoryUrl = "http://brokenfdc3.com";

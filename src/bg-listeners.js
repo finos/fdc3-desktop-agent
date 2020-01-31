@@ -1,8 +1,14 @@
+/**
+ *  Main handler functions for API logic executed by the background script 
+ */
+
 import utils from "./utils";
 
 //wait 2 minutes for pending intents to connect
 const pendingIntentTimeout = 2 * 60 * 1000;
+//collection of queued intents to apply to tabs when they connect
 let pending_intents = [];
+//collection of queud contexts to apply to tabs when they connect
 let pending_contexts = [];
 //running contexts 
 let contexts = {default:[]};
@@ -28,7 +34,6 @@ const dropContextListeners = (id) => {
         contextListeners[channel] = contextListeners[channel].filter(item => {return item !== id; });
     }); 
 };
-
 
 const setIntentListener = (intent, id) => {
     if (!intentListeners[intent]){
@@ -75,10 +80,6 @@ const open = async (msg, port) => {
                         }
                         resolve({result:true, tab:tab.id});
                     });
-                    //wait for the window to connect...
-                    //todo: handle context, templates, etc
-                    //todo: return app handle object with tab...
-                    //todo: handle no appd and other error conditions
                     
                 }
                 else {
@@ -188,7 +189,9 @@ const broadcast = (msg, port) => {
        
         contexts[channel].unshift(msg.data.context);
         //broadcast to listeners
+        console.log("broadcast connected and contextListeners", utils.getConnected(), contextListeners);
         contextListeners[channel].forEach(l => {
+            console.log(`broadcast ${channel} to`,l);
             utils.getConnected(l).port.postMessage({topic:"context", data:msg.data});
         });
         resolve(true);

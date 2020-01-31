@@ -1,3 +1,7 @@
+/**
+ * This file is injected into each Chrome tab by the Content script to make the FDC3 API available as a global
+ */
+
 function _doFdc3(){
 
 const wireMethod = (method, detail, isVoid) => {

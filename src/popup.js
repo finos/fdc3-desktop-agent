@@ -1,3 +1,10 @@
+/**
+ * the popup is the content for the extension action (button placed in the location bar by the desktop agent extension)
+ * the popup provides the following functionality:
+ * -  a channel picker that allows the end user to set the color channel for the tab
+ * - a search input that enables the end user to search and launch items from the app directory
+ */
+
 import "./components/channel-picker";
 import utils from "./utils.js";
 import autoComplete from "./components/autoComplete";

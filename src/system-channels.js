@@ -1,3 +1,6 @@
+/**
+ * metadata for the system channels 
+ */
 export default[
     {"id":"red","type":"system","visualIdentity":
         {"color":"#da2d2d",

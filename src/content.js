@@ -1,6 +1,11 @@
+/**
+ * The Content script runs in each Chrome tab, it is responsible for:
+ *  - connecting to the background script and routing events to/from it
+ *  - injecting the fdc3 api into each tab
+ *  - rendering the intent resolver UI
+ *  
+ */
 import channels from "./system-channels";
-
-
 
 
 //establish comms with the background script 
