@@ -33,6 +33,9 @@ const getSystemChannels = () => {
     return channels;
 };
 
+/**
+ * add a new tab to the collection of tracked tabs
+ */
 const setConnected = (id, item) => {
     console.log(`set connected id=${id} item=${item}`,connected);
     connected[id] = item;
@@ -55,7 +58,10 @@ const dropConnected = (id)=> {
 };
 
 
-
+/**
+ * brings a tab (and window) into focus
+ * 
+ */
 const bringToFront = (id) => {
     return new Promise((resolve, reject) => {
         let _tab = null;
@@ -90,7 +96,19 @@ const bringToFront = (id) => {
     });
 };
 
-
+/**
+ * generate an id from a port object
+ * this is the identifier used for connection and channel tracking
+ */
+const id = (port, tab) => {
+    if (port.sender){
+        const t = tab ? tab : port.sender.tab;
+        return `${port.sender.id}${t.id}`;
+    }
+    else {
+        return false;
+    }
+};
 
 export default{
     directoryUrl,
@@ -100,5 +118,6 @@ export default{
     dropConnected,
     bringToFront,
     OpenError,
-    ResolveError
+    ResolveError,
+    id
 };

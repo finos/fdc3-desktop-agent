@@ -26,7 +26,7 @@ listeners.initContextChannels(utils.getSystemChannels());
 chrome.runtime.onConnect.addListener( async function(port) {
     
     let app_url = new URL(port.sender.url);
-    let app_id = (port.sender.id + port.sender.tab.id);
+    let app_id = utils.id(port);
     //envData is the known info we're going to pass back to the app post-connect
     let envD = {};
     envD.currentChannel = listeners.getTabChannel(port.sender.tab.id);
@@ -95,7 +95,7 @@ chrome.runtime.onConnect.addListener( async function(port) {
     
     port.onDisconnect.addListener(function(){
         console.log("disconnect",port);
-        let id = (port.sender.id + port.sender.tab.id);
+        let id = utils.id(port);
         utils.dropConnected(id);
         //remove context listeners
         listeners.dropContextListeners(id);

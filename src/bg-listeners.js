@@ -56,7 +56,7 @@ const dropIntentListeners = (port) => {
     //iterate through the intents and cleanup the listeners...
     Object.keys(intentListeners).forEach(key => {
         if (intentListeners[key].length > 0){
-            intentListeners[key]= intentListeners[key].filter(item => {return item !== port.sender.id + port.sender.tab.id; });
+            intentListeners[key]= intentListeners[key].filter(item => {return item !== utils.id(port); });
         }
     });
 };
@@ -99,9 +99,9 @@ const open = async (msg, port) => {
 
 const addContextListener = (msg, port) => {
     return new Promise((resolve, reject) => {
-        let c = utils.getConnected(port.sender.id + port.sender.tab.id);
+        let c = utils.getConnected(utils.id(port));
         let channel = (c && c.channel) ? c.channel : "default";
-        contextListeners[channel].push((port.sender.id + port.sender.tab.id));
+        contextListeners[channel].push((utils.id(port)));
         
         if (pending_contexts.length > 0){
             //first cleanup anything old
@@ -148,7 +148,7 @@ const setPendingContext =function(tabId, context){
 const addIntentListener = (msg, port) => {
     return new Promise((resolve, reject) =>{
         let name = msg.data.intent;
-       setIntentListener(name, port.sender.id + port.sender.tab.id)
+        setIntentListener(name, utils.id(port));
         //check for pending intents
 
         if (pending_intents.length > 0){
@@ -183,7 +183,7 @@ const addIntentListener = (msg, port) => {
 
 const broadcast = (msg, port) => {
     return new Promise((resolve, reject) => {
-        let c = utils.getConnected((port.sender.id + port.sender.tab.id));
+        let c = utils.getConnected((utils.id(port)));
         let channel = c.channel ? c.channel : "default";
         //is the app on a channel?
        
@@ -255,7 +255,8 @@ const raiseIntent = async (msg, port) => {
                 if (r[0].type === "window"){
                     r[0].details.port.postMessage({topic:"intent", data:msg.data});
                     utils.bringToFront(r[0].details.port);
-                    resolve({result:true, source:`${r[0].details.port.sender.id}${r[0].details.port.sender.tab.id}`, version:"1.0"});
+                    let id = utils.id(r[0].details.port);
+                    resolve({result:true, source:id, version:"1.0"});
                 } else if (r[0].type === "directory"){
                     console.log("directory ", r[0].details);
                     let start_url = r[0].details.directoryData.start_url;
@@ -297,7 +298,8 @@ const raiseIntent = async (msg, port) => {
                                 }
                                 //let win = window.open(start_url,"_blank");
                                 chrome.tabs.create({url:start_url},tab =>{
-                                    resolve({result:true, source:`${port.sender.id}${tab.id}`, version:"1.0", tab:tab.id});
+                                    let id = utils.id(port, tab);
+                                    resolve({result:true, source:id, version:"1.0", tab:tab.id});
                                 });
                                 //send the context - if the default start_url was used...
                                 //get the window/tab...
@@ -374,12 +376,13 @@ const resolveIntent = async (msg, port) => {
         if (sType === "window"){
             let winList = getIntentListeners(msg.intent);
             let win = winList.find(item => {
-                return item === sPort.sender.id + sPort.sender.tab.id;
+                return item === utils.id(sPort);
             });
             if (win){
                 utils.getConnected(win).port.postMessage({topic:"intent", data:{intent:msg.intent, context: msg.context}});    
                 utils.bringToFront(win); 
-                resolve({result:true, source:`${sPort.sender.id}${sPort.sender.tab.id}`, version:"1.0", tab:sPort.sender.tab.id});
+                let id = utils.id(sPort);
+                resolve({result:true, source:id, version:"1.0", tab:sPort.sender.tab.id});
             }
             
         }
@@ -428,7 +431,8 @@ const resolveIntent = async (msg, port) => {
                     chrome.tabs.create({url:start_url},tab =>{
                         //set pending intent for the tab...
                         setPendingIntent(tab.id, msg.intent, msg.context);
-                        resolve({result:true, tab:tab.id, source:`${port.sender.id}${tab.id}`, version:"1.0"});
+                        let id = utils.id(port,tab);
+                        resolve({result:true, tab:tab.id, source:id, version:"1.0"});
                     });
                     //keep array of pending, id by url,  store intent & context, timestamp
                     //when a new window connects, throw out anything more than 2 minutes old, then match on url
@@ -443,7 +447,7 @@ const joinChannel = (msg, port) => {
     return new Promise((resolve, reject) => {
         console.log("join channel", msg, port); 
         let chan = msg.data.channel;
-        let _id = (port.sender.id + port.sender.tab.id);
+        let _id = utils.id(port);
         let c = utils.getConnected(_id);
         //remove from previous channel...
          let prevChan = c.channel ? c.channel : "default";
