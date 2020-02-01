@@ -449,27 +449,31 @@ const joinChannel = (msg, port) => {
         let chan = msg.data.channel;
         let _id = utils.id(port);
         let c = utils.getConnected(_id);
-        //remove from previous channel...
+        //get the previous channel
          let prevChan = c.channel ? c.channel : "default";
-         contextListeners[prevChan] = contextListeners[prevChan].filter(id => {return id !== _id;} );
-        //add to new
-        if (!contextListeners[chan]){
-         contextListeners[chan] = [];
+         //are the new channel and previous the same?  then no-op...
+         if (prevChan !== chan){
+            //remove from previous channel...
+            contextListeners[prevChan] = contextListeners[prevChan].filter(id => {return id !== _id;} );
+            //add to new
+            if (!contextListeners[chan]){
+            contextListeners[chan] = [];
+            }
+            contextListeners[chan].push(_id);
+            c.channel = chan;
+            tabChannels[(port.sender.tab.id + "")] = chan;
+            //set the badge state
+            let bText = chan === "default" ? "" : "+";
+            chrome.browserAction.setBadgeText({text:bText,tabId:port.sender.tab.id});
+            
+            let channels = utils.getSystemChannels();
+            let selectedChannel = channels.find(_chan => {return _chan.id === chan;});
+            let color = selectedChannel.visualIdentity ? selectedChannel.visualIdentity.color : "";
+            chrome.browserAction.setBadgeBackgroundColor({color:color,
+                tabId:port.sender.tab.id});
+            //push current channel context 
+            port.postMessage({topic:"context", data:{context:contexts[chan][0]}});
         }
-        contextListeners[chan].push(_id);
-        c.channel = chan;
-        tabChannels[(port.sender.tab.id + "")] = chan;
-        //set the badge state
-        let bText = chan === "default" ? "" : "+";
-        chrome.browserAction.setBadgeText({text:bText,tabId:port.sender.tab.id});
-        
-        let channels = utils.getSystemChannels();
-        let selectedChannel = channels.find(_chan => {return _chan.id === chan;});
-        let color = selectedChannel.visualIdentity ? selectedChannel.visualIdentity.color : "";
-        chrome.browserAction.setBadgeBackgroundColor({color:color,
-            tabId:port.sender.tab.id});
-         //push current channel context 
-        port.postMessage({topic:"context", data:{context:contexts[chan][0]}});
         resolve(true);
     });
 };
