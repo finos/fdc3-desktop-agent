@@ -8,6 +8,7 @@
  */
 import utils from "./utils";
 import listeners from "./bg-listeners";
+import systemChannels from "./system-channels";
 
 
 listeners.initContextChannels(utils.getSystemChannels());
@@ -174,6 +175,30 @@ chrome.runtime.onConnect.addListener( async function(port) {
         }
 
     });
+});
+
+
+/**
+ * handle content-specific events (like monitor)
+ */
+chrome.runtime.onMessage.addListener((msg, sender, callback) => {
+    if (sender.url === "http://localhost:3000/demos/fdc3_explained.html"){
+        switch (msg.topic) {
+            case "getAppDUrl":
+                callback.call(this, utils.directoryUrl);
+                break;
+            case "getConnectedApps":
+                callback.call(this, utils.getConnected());
+            case "getChannels":
+                callback.call(this, systemChannels);
+            case "getContextListeners":
+                callback.call(this, listeners.getContextListeners());
+            case "getIntentListeners":
+                callback.call(this, listeners.getIntentListeners());
+            default:
+                break;
+        }
+    }
 });
 
 // Called when the user clicks on the browser action.

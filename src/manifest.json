@@ -26,6 +26,13 @@
           ],
           "run_at": "document_start",
           "js": ["content.js"]
+        },
+        {
+          "matches": [
+            "http://localhost:3000/demos/fdc3_explained.html"
+          ],
+          "run_at":"document_start",
+          "js" : ["monitor_content.js"]
         }
       ]
   }

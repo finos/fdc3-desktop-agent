@@ -42,6 +42,15 @@ const setIntentListener = (intent, id) => {
     intentListeners[intent].push(id); 
 };
 
+const getContextListeners = (channel) => {
+    if (!channel) {
+        return contextListeners;
+    }
+    else {
+        return contextListeners[channel] ? contextListeners[channel] : [];
+    }
+};
+
 const getIntentListeners = (intent) => {
     if (!intent) {
         return intentListeners;
@@ -543,5 +552,7 @@ export default{
     getTabTitle,
     getTabChannel,
     findIntent,
-    findIntentsByContext
+    findIntentsByContext,
+    getIntentListeners,
+    getContextListeners
 };
