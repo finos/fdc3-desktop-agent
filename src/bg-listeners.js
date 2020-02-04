@@ -478,11 +478,15 @@ const joinChannel = (msg, port) => {
     });
 };
 
-
-const findIntent = (msg, port) => {
-    return new Promise((resolve, reject) => {
-        let intent = msg.intent;
-        let context = msg.context;
+// returns a single AppIntent:
+// {
+//     intent: { name: "StartChat", displayName: "Chat" },
+//     apps: [{ name: "Skype" }, { name: "Symphony" }, { name: "Slack" }]
+// }
+const findIntent = async (msg, port) => {
+    return new Promise(async (resolve, reject) => {
+        let intent = msg.data.intent;
+        let context = msg.data.context;
         if (intent){
             let url = `${utils.directoryUrl}/apps/search?intent=${intent}`;
             if (context){
@@ -492,10 +496,23 @@ const findIntent = (msg, port) => {
                 }
                 url+= `&context=${context}`;
             }
-        
-            fetch(url).then(_r =>{
-                _r.json().then(j => {resolve(j);});
-            });
+            try {
+            let _r = await fetch(url);
+            let j = await _r.json();
+            let r = {intent:{}, apps:[]};
+            r.apps = j;
+            let intnt = r.apps[0].intents.filter(i => {return i.name === intent;});
+            if (intnt.length > 0){
+                r.intent.name = intnt[0].name;
+                r.intent.displayName = intnt[0].display_name;
+            }
+            resolve(r);
+            
+            }
+            catch (ex){
+                //no results found for the app-directory, there may still be intents from live apps
+                resolve({result:true,apps:[]});
+            }
         }
         else {
             reject("no intent");
@@ -503,14 +520,49 @@ const findIntent = (msg, port) => {
     });
 };
 
-const findIntentsByContext = (msg, port) => {
-    return new Promise((resolve, reject) => {
-        let context = msg.context;    
+
+// returns, for example:
+// [{
+//     intent: { name: "StartCall", displayName: "Call" },
+//     apps: [{ name: "Skype" }]
+// },
+// {
+//     intent: { name: "StartChat", displayName: "Chat" },
+//     apps: [{ name: "Skype" }, { name: "Symphony" }, { name: "Slack" }]
+// }];
+const findIntentsByContext = async (msg, port) => {
+    return new Promise(async (resolve, reject) => {
+        let context = msg.data.context;
+        if (context.type){
+            context = context.type;
+        }    
         if (context){
             let url = `${utils.directoryUrl}/apps/search?context=${context}`;   
-            fetch(url).then(_r =>{
-                _r.json().then(j => {resolve(j);});
-            });
+            let _r = await fetch(url);
+            let d = await _r.json();
+            let r = [];
+            if (d){
+                let found = {};
+                let intents = [];
+                d.forEach(item => {
+                    item.intents.forEach(intent => {
+                        if (!found[intent.name]){
+                            intents.push({name:intent.name,displayName:intent.display_name});
+                            found[intent.name] = [item];
+                        }
+                        else {
+                            found[intent.name].push(item);
+                        }
+                    });
+                });
+
+                intents.forEach(intent =>{
+                    let entry = {intent:intent,apps:found[intent.name]};
+
+                    r.push(entry);
+                });
+            }
+            resolve(r);
         }
         else {
             reject("no context");

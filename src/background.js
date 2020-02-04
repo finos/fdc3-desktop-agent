@@ -100,6 +100,7 @@ chrome.runtime.onConnect.addListener( async function(port) {
 
     const wrapListener = async (msg, port, decorator) => {
         let r = null;
+        if (listeners[msg.topic]){
             try {
                 let _r = await listeners[msg.topic].call(this, msg, port);
                 console.log("wrap listener",_r);
@@ -116,63 +117,19 @@ chrome.runtime.onConnect.addListener( async function(port) {
                 r = {result:false,
                     error:err};
             }
+            //post the return message back to the content script
             port.postMessage({
                     topic:msg.data.eventId,
                     data:r
-            }); 
+            })
+        }
+        else {
+            console.log(`no listener found for message topic '${msg.topic}'`);   
+        }
     };
 
     port.onMessage.addListener(async function(msg) {
-       
-        let r = null;
-
-        switch (msg.topic){
-            case "open":
-                wrapListener(msg, port,(obj, r) => {
-                    obj.tab = r;
-                    return obj;
-                });
-                 
-                break;
-            case "addContextListener":
-                r = await listeners.addContextListener(msg, port);
-                return r;
-                break;
-            case "addIntentListener":
-                r = await listeners.addIntentListener(msg, port);
-                return r;
-                break;
-             case "broadcast":
-                wrapListener(msg, port,(obj, r) => {
-                    return obj;
-                });
-               
-                break;
-             case "raiseIntent":
-                 wrapListener(msg, port, (obj, r) => {
-                    return obj;
-                });
-                break;
-             case "joinChannel":
-                r = await listeners.joinChannel(msg, port);
-                return r;
-                break;  
-            case "getTabTitle":
-                r = await listeners.getTabTitle(msg, port);
-                return r;
-                break;
-            case "findIntent":
-                r = await listeners.findIntent(msg, port);
-                port.postMessage({topic:"returnFindIntent",data:r, intent:msg.intent, context:msg.context});    
-                break;
-            case "findIntentsByContext":
-                r = await listeners.findIntentsByContext(msg, port);
-                port.postMessage({topic:"returnFindIntentsByContext",data:r, context:msg.context});    
-                break;
-            default:
-                console.log("no handler found for method", msg.topic);
-        }
-
+        wrapListener(msg, port);
     });
 });
 
