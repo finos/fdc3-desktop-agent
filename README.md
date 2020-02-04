@@ -54,7 +54,7 @@ The extension is not published with Chrome. To use it, you will need to get the 
 ### install the extension
 
 - In Chrome, got to [chrome://extensions](chrome://extensions)
-- Click the *Load unpacked* button in the top left of the screen
+- Click the *Load unpacked* button in the top left of the screen (if this option is not available, select 'Developer mode' using the toggle switch ine the top right)
 - Select the *desktop-agent/dist* directory from your local desktop-agent setup
 
 To try out changes, just rebuild with npm and refresh the extension from the extensions page.
