@@ -23,7 +23,6 @@ let tabChannels = {};
 const initContextChannels = (channels) => {
     //initialize the active channels
     //need to map channel membership to tabs, listeners to apps, and contexts to channels
-    console.log(channels);
     channels.forEach(chan => {
         contextListeners[chan.id] = [];
         contexts[chan.id] = [];});
@@ -110,7 +109,6 @@ const addContextListener = (msg, port) => {
                 return n - i.ts < pendingIntentTimeout;
             });
             //next, match on url and intent
-            console.log("pending contexts", pending_contexts);
             pending_contexts.forEach((pContext, index) => {
                 //removing trainling slashes from the sender.url...
                 let portTabId = port.sender.tab.id;
@@ -137,7 +135,6 @@ const addContextListener = (msg, port) => {
 //when a match is found, remove match from the list, send intent w/context, and bring to front
 
 const setPendingIntent =function(tabId, intent, context){
-console.log("setPendingIntent",tabId, intent, context);
   pending_intents.push({ts:Date.now(), tabId:tabId, intent:intent, context:context});
 };
 
@@ -189,9 +186,7 @@ const broadcast = (msg, port) => {
        
         contexts[channel].unshift(msg.data.context);
         //broadcast to listeners
-        console.log("broadcast connected and contextListeners", utils.getConnected(), contextListeners);
         contextListeners[channel].forEach(l => {
-            console.log(`broadcast ${channel} to`,l);
             utils.getConnected(l).port.postMessage({topic:"context", data:msg.data});
         });
         resolve(true);
@@ -258,7 +253,6 @@ const raiseIntent = async (msg, port) => {
                     let id = utils.id(r[0].details.port);
                     resolve({result:true, source:id, version:"1.0"});
                 } else if (r[0].type === "directory"){
-                    console.log("directory ", r[0].details);
                     let start_url = r[0].details.directoryData.start_url;
                     let mR = await fetch(r[0].details.directoryData.manifest);
                     if (mR){
@@ -445,7 +439,6 @@ const resolveIntent = async (msg, port) => {
 
 const joinChannel = (msg, port) => {
     return new Promise((resolve, reject) => {
-        console.log("join channel", msg, port); 
         let chan = msg.data.channel;
         let _id = utils.id(port);
         let c = utils.getConnected(_id);

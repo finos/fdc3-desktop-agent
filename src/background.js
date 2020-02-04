@@ -42,7 +42,6 @@ chrome.runtime.onConnect.addListener( async function(port) {
         if (data.length === 1){
             entry = data[0];
     
-            console.log("entry",entry);
             //if there is an exact match - we're going to try fetch the manifest   
             if (entry.manifest){
                 //fetch and bundle environmnet data for the app: app manifest, etc
@@ -103,7 +102,6 @@ chrome.runtime.onConnect.addListener( async function(port) {
         if (listeners[msg.topic]){
             try {
                 let _r = await listeners[msg.topic].call(this, msg, port);
-                console.log("wrap listener",_r);
                 if (decorator){
                     r = decorator.call( {result:true}, _r);
                 }

@@ -9,7 +9,6 @@ const wireMethod = (method, detail, isVoid) => {
     const eventId = `${method}_${ts}`;
     detail.eventId = eventId;
     detail.ts = ts;
-    console.log(`API: dispatch for ${method}`, detail);
     if (isVoid){      
         document.dispatchEvent(new CustomEvent(`FDC3:${method}`,{detail:detail}));
     }
@@ -17,7 +16,6 @@ const wireMethod = (method, detail, isVoid) => {
         return new Promise((resolve, reject) => {
            
             document.addEventListener(`FDC3:return_${eventId}`,(evt)=>{
-                console.log(`API: return for ${eventId}`,evt);
                 if (evt.detail){
                     resolve(evt.detail);
                 }
@@ -72,31 +70,9 @@ window.fdc3 = {
         return wireMethod("findIntent",{intent:intent, context:context});
     },
 
-// returns, for example:
-// [{
-//     intent: { name: "StartCall", displayName: "Call" },
-//     apps: [{ name: "Skype" }]
-// },
-// {
-//     intent: { name: "StartChat", displayName: "Chat" },
-//     apps: [{ name: "Skype" }, { name: "Symphony" }, { name: "Slack" }]
-// }];
+
     findIntentsByContext: function(context){
         return wireMethod("findIntentsByContext",{context:context});
-       /* return new Promise((resolve, reject) => {
-            document.addEventListener("FDC3:returnFindIntentsByContext",evt =>{
-                resolve(evt.detail.data);
-            }, {once : true});
-            //massage context to just get type...
-            if (typeof context === "object" && context.type){
-                context = context.type;
-            }
-            document.dispatchEvent(new CustomEvent('FDC3:findIntentsByContext', {
-                detail:{
-                    context:context
-                }
-            }));
-        });*/
     },
 
     getSystemChannels: function(){

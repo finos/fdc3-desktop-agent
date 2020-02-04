@@ -36,7 +36,6 @@ const returnTimeout = (1000 * 60 * 2);
     //is there a returnlistener registered for the event?
     let listener = returnListeners[msg.topic] ? returnListeners[msg.topic].listener : null;
     if (listener){
-        console.log("Content: listener", msg);
         listener.call(port,msg);
         returnListeners[msg.name] = undefined;
     }
@@ -71,12 +70,10 @@ const wireTopic = (topic, config) => {
 
         //get eventId and timestamp from the event 
         if (! isVoid){
-            console.log(`Content: wireTopic.  topic = '${topic}', event`,e);
             let eventId = e.detail.eventId;
             returnListeners[eventId] = {
                 ts:e.ts,
                 listener:function(msg, port){
-                console.log(`Content: dispatch return event for ${eventId}`,e);    
                 document.dispatchEvent(new CustomEvent(`FDC3:return_${eventId}`, {detail:msg.data})); }
             };
             if (cb){
@@ -96,7 +93,6 @@ const wireTopic = (topic, config) => {
 };
  
  //listen for FDC3 events
- //boilerplate topics
  const topics = ["open","raiseIntent","addContextListener","addIntentListener","findIntent","findIntentsByContext"];
  topics.forEach(t => {wireTopic(t);});
  //set the custom ones...
@@ -105,7 +101,6 @@ const wireTopic = (topic, config) => {
  
 
 document.addEventListener("FDC3:resolver-close", e => {
-    console.log("close resolver");
     port.postMessage({topic:"resolver-close"});   
     if (resolver){
         resolver.style.display = "none";
@@ -120,7 +115,7 @@ document.addEventListener("FDC3:getSystemChannels", e => {
 
 port.onMessage.addListener(msg => {
     if (msg.topic === "environmentData"){
-        console.log("connected!", msg.data, eventQ);
+        console.log("app connected", msg.data, eventQ);
         //we're now ready for general fdc3 comms with the background
         connected = true;
         //if there is a queue of pending events, then act on them, these will mostly be addContext/addIntent Listener calls
@@ -277,7 +272,6 @@ let resolver = null;
             sendResponse(document.title);
         }
         else if (request.message === "popup-get-current-channel"){
-            console.log("currentChannel", currentChannel);
             sendResponse(currentChannel);
         }
         else if (request.message === "popup-join-channel"){
@@ -363,7 +357,6 @@ let resolver = null;
             }
             rItem.addEventListener("click",evt => {
                 //send resolution message to extension to route
-               // console.log(`intent resolved (window).  selected = ${JSON.stringify(selected)} intent = ${JSON.stringify(request.intent)} contect = ${JSON.stringify(request.context)}`)
                 port.postMessage({
                     topic:request.eventId,
                     intent:request.intent,
