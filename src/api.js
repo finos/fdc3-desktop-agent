@@ -75,9 +75,11 @@ const wireMethod = (method, detail, isVoid) => {
     }
 };
 
+const _contextListeners = {};
+const _intentListeners = {};
+
 window.fdc3 = {
-    _contextListeners:{},
-    _intentListeners:{},
+
     open:function(name, context){
         return wireMethod("open", {name:name, context:context});
     },
@@ -92,7 +94,7 @@ window.fdc3 = {
 
     addContextListener:function(listener){
         const listenerId = guid();
-        window.fdc3._contextListeners[listenerId] = listener;
+        _contextListeners[listenerId] = listener;
         document.dispatchEvent(new CustomEvent('FDC3:addContextListener', {
             detail:{
                 id:listenerId
@@ -102,10 +104,10 @@ window.fdc3 = {
     },
 
     addIntentListener:function(intent, listener){
-        if (!window.fdc3._intentListeners[intent]){
-            window.fdc3._intentListeners[intent] = [];
+        if (!_intentListeners[intent]){
+            _intentListeners[intent] = [];
         }
-        window.fdc3._intentListeners[intent].push(listener);
+        _intentListeners[intent].push(listener);
         document.dispatchEvent(new CustomEvent('FDC3:addIntentListener', {
             detail:{
                 intent:intent
@@ -152,17 +154,17 @@ window.fdc3 = {
  };
 
  document.addEventListener("FDC3:context",evt => {
-     const listeners = window.fdc3._contextListeners;
+     const listeners = _contextListeners;
      const keys = Object.keys(listeners);
      keys.forEach(k => {
-         l = listeners[k];
+         let l = listeners[k];
          l.call(this,evt.detail.data.context);
      });
  });
 
  document.addEventListener("FDC3:intent",evt => {
-     if (window.fdc3._intentListeners[evt.detail.data.intent]){
-        window.fdc3._intentListeners[evt.detail.data.intent].forEach(l => {
+     if (_intentListeners[evt.detail.data.intent]){
+        _intentListeners[evt.detail.data.intent].forEach(l => {
             l.call(this,evt.detail.data.context);
         });
      }

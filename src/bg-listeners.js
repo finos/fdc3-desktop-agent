@@ -144,8 +144,16 @@ const addContextListener = (msg, port) => {
 
 //drop an individual listener when it is unsubscribed
 const dropContextListener = (msg, port) => {
-
-}
+        const id = msg.data.id;
+        //find the listener in the dictionary and delete
+        Object.keys(contextListeners).forEach(channel =>{
+            let channelList = contextListeners[channel];
+            if (channelList[id]){
+                delete channelList[id];
+            }
+          
+            });
+};
 
 
 //keep array of pending, id of the tab,  store intent & context, timestamp
@@ -614,6 +622,7 @@ export default{
     addIntentListener,
     initContextChannels,
     dropContextListeners,
+    dropContextListener,
     dropIntentListeners,
     broadcast,
     raiseIntent,
