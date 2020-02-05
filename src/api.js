@@ -4,6 +4,45 @@
 
 function _doFdc3(){
 
+/**
+*  the Listener class 
+*/
+class Listener {
+    constructor(){
+
+
+    }
+
+    unsubscribe(){
+        
+    }
+}
+
+/**
+ * the Channel class 
+ */
+class Channel {
+    constructor(id, type, displayMetadata){
+        this.id = id;
+        this.type = type;
+        this.displayMetadata = displayMetadata;
+    }
+
+    broadcast(context){
+
+    }
+
+    getCurrentContext(contextType){
+        return new Promise(async (resolve, reject) => {
+
+        });
+    }
+
+    addContextListener(handler) {
+
+    }
+}
+
 const wireMethod = (method, detail, isVoid) => {
     const ts = Date.now();
     const eventId = `${method}_${ts}`;
