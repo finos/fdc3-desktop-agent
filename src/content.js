@@ -98,7 +98,7 @@ const wireTopic = (topic, config) => {
  //set the custom ones...
  wireTopic("joinChannel",{cb:(e) => { currentChannel = e.detail.channel;}});
  wireTopic("broadcast",{isVoid:true});
- 
+ wireTopic("dropContextListener",{isVoid:true});
 
 document.addEventListener("FDC3:resolver-close", e => {
     port.postMessage({topic:"resolver-close"});   

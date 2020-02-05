@@ -129,6 +129,10 @@ const addContextListener = (msg, port) => {
    
 };
 
+const dropContextListener = (msg, port) => {
+    
+}
+
 
 //keep array of pending, id of the tab,  store intent & context, timestamp
 //when a new window connects, throw out anything more than 2 minutes old, then match on url
