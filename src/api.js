@@ -43,7 +43,9 @@ class Listener {
             document.dispatchEvent(new CustomEvent(`FDC3:dropContextListener`,{detail:{id:this.id}}));
         }
         else if (this.type === "intent"){
-
+            delete _intentListeners[this.intent][this.id];
+            //notify the background script
+            document.dispatchEvent(new CustomEvent(`FDC3:dropIntentListener`,{detail:{id:this.id, intent:this.intent}}));
         }
     }
 }
@@ -104,15 +106,18 @@ window.fdc3 = {
     },
 
     addIntentListener:function(intent, listener){
+        const listenerId = guid();
         if (!_intentListeners[intent]){
-            _intentListeners[intent] = [];
+            _intentListeners[intent] = {};
         }
-        _intentListeners[intent].push(listener);
+        _intentListeners[intent][listenerId] = listener;
         document.dispatchEvent(new CustomEvent('FDC3:addIntentListener', {
             detail:{
+                id:listenerId,
                 intent:intent
             }
         }));
+        return new Listener("intent", listenerId, intent)
     },
 
     findIntent: function(intent, context){
@@ -163,10 +168,14 @@ window.fdc3 = {
  });
 
  document.addEventListener("FDC3:intent",evt => {
-     if (_intentListeners[evt.detail.data.intent]){
-        _intentListeners[evt.detail.data.intent].forEach(l => {
+    const listeners = _intentListeners[evt.detail.data.intent];
+     if (listeners){
+        const keys = Object.keys(listeners); 
+        keys.forEach(k => {
+            let l = listeners[k];
             l.call(this,evt.detail.data.context);
         });
+       
      }
 });
 

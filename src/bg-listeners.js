@@ -47,11 +47,11 @@ const dropContextListeners = (appId) => {
     }); 
 };
 
-const setIntentListener = (intent, id) => {
+const setIntentListener = (intent, listenerId, appId) => {
     if (!intentListeners[intent]){
-        intentListeners[intent] = []; 
+        intentListeners[intent] = {}; 
     }
-    intentListeners[intent].push(id); 
+    intentListeners[intent][listenerId] = {appId:appId}; 
 };
 
 const getIntentListeners = (intent) => {
@@ -59,7 +59,7 @@ const getIntentListeners = (intent) => {
         return intentListeners;
     }
     else {
-        return intentListeners[intent] ? intentListeners[intent] : [];
+        return intentListeners[intent] ? intentListeners[intent] : {};
     }
 };
 
@@ -155,6 +155,18 @@ const dropContextListener = (msg, port) => {
             });
 };
 
+//drop an individual listener when it is unsubscribed
+const dropIntentListener = (msg, port) => {
+    const id = msg.data.id;
+    //find the listener in the dictionary and delete
+    Object.keys(intentListeners).forEach(intent =>{
+        let intentList = intentListeners[msg.data.intent];
+        if (intentList[id]){
+            delete intentList[id];
+        }
+      
+        });
+};
 
 //keep array of pending, id of the tab,  store intent & context, timestamp
 //when a new window connects, throw out anything more than 2 minutes old, then match on url
@@ -171,7 +183,8 @@ const setPendingContext =function(tabId, context){
 const addIntentListener = (msg, port) => {
     return new Promise((resolve, reject) =>{
         let name = msg.data.intent;
-        setIntentListener(name, utils.id(port));
+        let listenerId = msg.data.id;
+        setIntentListener(name, listenerId, utils.id(port));
         //check for pending intents
 
         if (pending_intents.length > 0){
@@ -238,7 +251,9 @@ const raiseIntent = async (msg, port) => {
         //add dynamic listeners...
         let intentListeners = getIntentListeners(msg.data.intent);
         if (intentListeners) {
-            intentListeners.forEach(id => {
+            let keys = Object.keys(intentListeners);
+            keys.forEach(k => {
+                let id = intentListeners[k].appId;
                 //look up the details of the window and directory metadata in the "connected" store
                 let connect = utils.getConnected(id);
                 //de-dupe               
@@ -399,10 +414,16 @@ const resolveIntent = async (msg, port) => {
         const sType = msg.selected.type;
         const sPort = msg.selected.details.port;
         if (sType === "window"){
-            let winList = getIntentListeners(msg.intent);
-            let win = winList.find(item => {
-                return item === utils.id(sPort);
+            let listeners = getIntentListeners(msg.intent);
+            let keys = Object.keys(listeners);
+            let win = null;
+            let id = utils.id(sPort);
+            keys.forEach(k => {
+                if (listeners[k].appId === id){
+                    win = listeners[k].appId;
+                }
             });
+           
             if (win){
                 utils.getConnected(win).port.postMessage({topic:"intent", data:{intent:msg.intent, context: msg.context}});    
                 utils.bringToFront(win); 
@@ -624,6 +645,7 @@ export default{
     dropContextListeners,
     dropContextListener,
     dropIntentListeners,
+    dropIntentListener,
     broadcast,
     raiseIntent,
     resolveIntent,
