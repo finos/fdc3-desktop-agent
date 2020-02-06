@@ -93,7 +93,7 @@ const wireTopic = (topic, config) => {
 };
  
  //listen for FDC3 events
- const topics = ["open","raiseIntent","addContextListener","addIntentListener","findIntent","findIntentsByContext"];
+ const topics = ["open","raiseIntent","addContextListener","addIntentListener","findIntent","findIntentsByContext","getCurrentContext"];
  topics.forEach(t => {wireTopic(t);});
  //set the custom ones...
  wireTopic("joinChannel",{cb:(e) => { currentChannel = e.detail.channel;}});

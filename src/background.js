@@ -116,10 +116,12 @@ chrome.runtime.onConnect.addListener( async function(port) {
                     error:err};
             }
             //post the return message back to the content script
-            port.postMessage({
-                    topic:msg.data.eventId,
-                    data:r
-            })
+            if (msg.data && msg.data.eventId){
+                port.postMessage({
+                        topic:msg.data.eventId,
+                        data:r
+                })
+            }
         }
         else {
             console.log(`no listener found for message topic '${msg.topic}'`);   

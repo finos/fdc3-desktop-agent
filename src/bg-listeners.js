@@ -66,10 +66,16 @@ const getIntentListeners = (intent) => {
 //removes all intent listeners for an endpoiont
 const dropIntentListeners = (port) => {
     //iterate through the intents and cleanup the listeners...
+    const pId = utils.id(port);
     Object.keys(intentListeners).forEach(key => {
-        if (intentListeners[key].length > 0){
-            intentListeners[key]= intentListeners[key].filter(item => {return item !== utils.id(port); });
-        }
+        let lKeys = Object.keys(intentListeners[key]);
+        lKeys.forEach(k => {
+            if (intentListeners[key][k].appId === pId){
+                delete intentListeners[key][k];
+            }
+        });
+           
+        
     });
 };
 
@@ -109,10 +115,22 @@ const open = async (msg, port) => {
     });
 };
 
+const getCurrentContext = (msg, port) => {
+    return new Promise((resolve, reject) => {
+        let channel = msg.data.channel;
+        let ctx = {};
+        if (channel){
+            ctx = contexts[channel][0];
+        }
+        resolve(ctx);
+    });
+};
+
 const addContextListener = (msg, port) => {
     return new Promise((resolve, reject) => {
         let c = utils.getConnected(utils.id(port));
-        let channel = (c && c.channel) ? c.channel : "default";
+        //use channel from the event message first, or use the channel of the sending app, or use default
+        let channel = msg.data.channel ? msg.data.channel : (c && c.channel) ? c.channel : "default";
         contextListeners[channel][msg.data.id] = {appId:utils.id(port)};
         
         if (pending_contexts.length > 0){
@@ -220,7 +238,8 @@ const addIntentListener = (msg, port) => {
 const broadcast = (msg, port) => {
     return new Promise((resolve, reject) => {
         let c = utils.getConnected((utils.id(port)));
-        let channel = c.channel ? c.channel : "default";
+        //use channel on message first - if one is specified
+        let channel = msg.data.channel ? msg.data.channel : c.channel ? c.channel : "default";
         //is the app on a channel?
        
         contexts[channel].unshift(msg.data.context);
@@ -524,7 +543,7 @@ const joinChannel = (msg, port) => {
             
             let channels = utils.getSystemChannels();
             let selectedChannel = channels.find(_chan => {return _chan.id === chan;});
-            let color = selectedChannel.visualIdentity ? selectedChannel.visualIdentity.color : "";
+            let color = selectedChannel.displayMetadata ? selectedChannel.displayMetadata.color : "";
             chrome.browserAction.setBadgeBackgroundColor({color:color,
                 tabId:port.sender.tab.id});
             //push current channel context 
@@ -653,5 +672,6 @@ export default{
     getTabTitle,
     getTabChannel,
     findIntent,
-    findIntentsByContext
+    findIntentsByContext,
+    getCurrentContext
 };

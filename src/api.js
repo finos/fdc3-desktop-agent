@@ -24,7 +24,7 @@ const guid = () => {
     
     return `${gen(2)}-${gen()}-${gen()}-${gen()}-${gen(3)}`;
     };
-    
+
 /**
 *  the Listener class 
 */
@@ -63,16 +63,23 @@ class Channel {
     }
 
     broadcast(context){
-
+        wireMethod("broadcast", {context:context,channel:this.id}, true);
     }
 
     getCurrentContext(contextType){
-        return new Promise(async (resolve, reject) => {
-
-        });
+        return wireMethod("getCurrentContext",{channel:this.id});
     }
 
-    addContextListener(handler) {
+    addContextListener(listener) {
+        const listenerId = guid();
+        _contextListeners[listenerId] = listener;
+        document.dispatchEvent(new CustomEvent('FDC3:addContextListener', {
+            detail:{
+                id:listenerId, 
+                channel:this.id
+            }
+        }));
+        return new Listener("context",listenerId);
     }
 }
 
@@ -160,7 +167,10 @@ window.fdc3 = {
     getSystemChannels: function(){
         return new Promise((resolve, reject) => {
             document.addEventListener("FDC3:returnSystemChannels",evt =>{
-                resolve(evt.detail.data);
+                let channels = evt.detail.data.map(c => {
+                    return new Channel(c.id,"system",c.displayMetadata);
+                });
+                resolve(channels);
             }, {once : true});
             document.dispatchEvent(new CustomEvent('FDC3:getSystemChannels', {
   
