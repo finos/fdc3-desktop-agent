@@ -17,6 +17,9 @@ let contextListeners = {default:{}};
 //intent listeners (dictionary keyed by intent name)
 let intentListeners = {};
 
+//collection of app channels
+const app_channels = [];
+
 //track tab channel membership (apps can disconnect and reconnect, but tabs and channel membership persist)
 let tabChannels = {};
 
@@ -553,6 +556,46 @@ const joinChannel = (msg, port) => {
     });
 };
 
+const getSystemChannels = async (msg, port) => {
+    return new Promise(async (resolve, reject) => {
+        resolve(utils.getSystemChannels());
+    });
+};
+
+const getOrCreateChannel = async (msg, port) => {
+    return new Promise(async (resolve, reject) => {
+        const id = msg.data.channelId;
+        let channel = null;
+        //is it a system channel?
+        const sChannels = utils.getSystemChannels();
+        let sc = sChannels.find(c => {
+            return c.id === id;
+        });
+
+        if (sc){
+            channel = {id:id, type:"system", displayMetadata:sc.displayMetadata};
+        }
+        //is it already an app channel?
+        if (! channel){
+            let ac = app_channels.find(c => {
+                return c.id === id;
+            });
+            if (ac) {
+                channel = {id:id, type:"app"};
+            }
+        }
+        //if not found... create as an app channel
+        if (! channel){
+            channel = {id:id, type:"app"};
+            //add an entry for the context listeners
+            contextListeners[id] = {};
+            contexts[id] = [];
+            app_channels.push(channel);
+        }
+        resolve(channel);
+    });
+};
+
 // returns a single AppIntent:
 // {
 //     intent: { name: "StartChat", displayName: "Chat" },
@@ -673,5 +716,7 @@ export default{
     getTabChannel,
     findIntent,
     findIntentsByContext,
-    getCurrentContext
+    getCurrentContext,
+    getSystemChannels,
+    getOrCreateChannel
 };

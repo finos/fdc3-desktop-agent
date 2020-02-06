@@ -85,12 +85,12 @@ class Channel {
 
 
 
-const wireMethod = (method, detail, isVoid) => {
+const wireMethod = (method, detail, config) => {
     const ts = Date.now();
     const eventId = `${method}_${ts}`;
     detail.eventId = eventId;
     detail.ts = ts;
-    if (isVoid){      
+    if (config && config.void){      
         document.dispatchEvent(new CustomEvent(`FDC3:${method}`,{detail:detail}));
     }
     else {
@@ -98,7 +98,11 @@ const wireMethod = (method, detail, isVoid) => {
            
             document.addEventListener(`FDC3:return_${eventId}`,(evt)=>{
                 if (evt.detail){
-                    resolve(evt.detail);
+                    let r = evt.detail
+                    if (config && config.resultHandler){
+                        r = config.resultHandler.call(this,r);
+                    }
+                    resolve(r);
                 }
                 else {
                     reject(evt.detail);
@@ -122,7 +126,7 @@ window.fdc3 = {
     },
     broadcast:function(context){
         //void
-        wireMethod("broadcast", {context:context}, true);
+        wireMethod("broadcast", {context:context}, {void:true});
     },
 
     raiseIntent:function(intent, context){
@@ -165,18 +169,20 @@ window.fdc3 = {
     },
 
     getSystemChannels: function(){
-        return new Promise((resolve, reject) => {
-            document.addEventListener("FDC3:returnSystemChannels",evt =>{
-                let channels = evt.detail.data.map(c => {
-                    return new Channel(c.id,"system",c.displayMetadata);
-                });
-                resolve(channels);
-            }, {once : true});
-            document.dispatchEvent(new CustomEvent('FDC3:getSystemChannels', {
-  
-            }));
-        });
+        return wireMethod("getSystemChannels",{},{resultHandler:(r)=>{
+            let channels = r.map(c => {
+                return new Channel(c.id,"system",c.displayMetadata);
+            });
+            return channels;
+        }});
     },
+
+    getOrCreateChannel: function(channelId){
+        return wireMethod("getOrCreateChannel",{channelId:channelId},{resultHandler:(r) =>{
+            return new Channel(r.id,r.type,r.displayMetadata);
+        }});
+    },
+
 
     joinChannel: function(channel){
         return new Promise((resolve, reject) => {
