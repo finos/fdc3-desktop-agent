@@ -13,7 +13,7 @@ let pending_contexts = [];
 //running contexts 
 let contexts = {default:[]};
 //context listeners
-let contextListeners = {default:[]};
+let contextListeners = {default:{}};
 //intent listeners (dictionary keyed by intent name)
 let intentListeners = {};
 
@@ -24,21 +24,34 @@ const initContextChannels = (channels) => {
     //initialize the active channels
     //need to map channel membership to tabs, listeners to apps, and contexts to channels
     channels.forEach(chan => {
-        contextListeners[chan.id] = [];
+        contextListeners[chan.id] = {};
         contexts[chan.id] = [];});
 };
 
-const dropContextListeners = (id) => {
+/**
+ * 
+ * drop all of the listeners for an app (when disconnecting)
+ */
+const dropContextListeners = (appId) => {
+    //iterate through the listeners dictionary and delete any associated with the tab (appId)
     Object.keys(contextListeners).forEach(channel =>{
-        contextListeners[channel] = contextListeners[channel].filter(item => {return item !== id; });
+        let channelList = contextListeners[channel];
+        let keys = Object.keys(channelList);
+        keys.forEach(k => {
+            let listener = channelList[k];
+            if (listener.appId === appId){
+                delete channelList[k];
+            }
+        });
+       // contextListeners[channel] = contextListeners[channel].filter(item => {return item !== id; });
     }); 
 };
 
-const setIntentListener = (intent, id) => {
+const setIntentListener = (intent, listenerId, appId) => {
     if (!intentListeners[intent]){
-        intentListeners[intent] = []; 
+        intentListeners[intent] = {}; 
     }
-    intentListeners[intent].push(id); 
+    intentListeners[intent][listenerId] = {appId:appId}; 
 };
 
 const getIntentListeners = (intent) => {
@@ -46,7 +59,7 @@ const getIntentListeners = (intent) => {
         return intentListeners;
     }
     else {
-        return intentListeners[intent] ? intentListeners[intent] : [];
+        return intentListeners[intent] ? intentListeners[intent] : {};
     }
 };
 
@@ -100,7 +113,7 @@ const addContextListener = (msg, port) => {
     return new Promise((resolve, reject) => {
         let c = utils.getConnected(utils.id(port));
         let channel = (c && c.channel) ? c.channel : "default";
-        contextListeners[channel].push((utils.id(port)));
+        contextListeners[channel][msg.data.id] = {appId:utils.id(port)};
         
         if (pending_contexts.length > 0){
             //first cleanup anything old
@@ -110,7 +123,7 @@ const addContextListener = (msg, port) => {
             });
             //next, match on url and intent
             pending_contexts.forEach((pContext, index) => {
-                //removing trainling slashes from the sender.url...
+               
                 let portTabId = port.sender.tab.id;
                 if (pContext.tabId === portTabId){
                     console.log("applying pending context", pContext);    
@@ -129,6 +142,31 @@ const addContextListener = (msg, port) => {
    
 };
 
+//drop an individual listener when it is unsubscribed
+const dropContextListener = (msg, port) => {
+        const id = msg.data.id;
+        //find the listener in the dictionary and delete
+        Object.keys(contextListeners).forEach(channel =>{
+            let channelList = contextListeners[channel];
+            if (channelList[id]){
+                delete channelList[id];
+            }
+          
+            });
+};
+
+//drop an individual listener when it is unsubscribed
+const dropIntentListener = (msg, port) => {
+    const id = msg.data.id;
+    //find the listener in the dictionary and delete
+    Object.keys(intentListeners).forEach(intent =>{
+        let intentList = intentListeners[msg.data.intent];
+        if (intentList[id]){
+            delete intentList[id];
+        }
+      
+        });
+};
 
 //keep array of pending, id of the tab,  store intent & context, timestamp
 //when a new window connects, throw out anything more than 2 minutes old, then match on url
@@ -145,7 +183,8 @@ const setPendingContext =function(tabId, context){
 const addIntentListener = (msg, port) => {
     return new Promise((resolve, reject) =>{
         let name = msg.data.intent;
-        setIntentListener(name, utils.id(port));
+        let listenerId = msg.data.id;
+        setIntentListener(name, listenerId, utils.id(port));
         //check for pending intents
 
         if (pending_intents.length > 0){
@@ -186,8 +225,13 @@ const broadcast = (msg, port) => {
        
         contexts[channel].unshift(msg.data.context);
         //broadcast to listeners
-        contextListeners[channel].forEach(l => {
-            utils.getConnected(l).port.postMessage({topic:"context", data:msg.data});
+        let keys = Object.keys(contextListeners[channel]);
+        keys.forEach(k => {
+            let l = contextListeners[channel][k];
+            let app = utils.getConnected(l.appId);
+            if (app){
+                app.port.postMessage({topic:"context", data:msg.data});
+            }
         });
         resolve(true);
     });
@@ -207,7 +251,9 @@ const raiseIntent = async (msg, port) => {
         //add dynamic listeners...
         let intentListeners = getIntentListeners(msg.data.intent);
         if (intentListeners) {
-            intentListeners.forEach(id => {
+            let keys = Object.keys(intentListeners);
+            keys.forEach(k => {
+                let id = intentListeners[k].appId;
                 //look up the details of the window and directory metadata in the "connected" store
                 let connect = utils.getConnected(id);
                 //de-dupe               
@@ -368,10 +414,16 @@ const resolveIntent = async (msg, port) => {
         const sType = msg.selected.type;
         const sPort = msg.selected.details.port;
         if (sType === "window"){
-            let winList = getIntentListeners(msg.intent);
-            let win = winList.find(item => {
-                return item === utils.id(sPort);
+            let listeners = getIntentListeners(msg.intent);
+            let keys = Object.keys(listeners);
+            let win = null;
+            let id = utils.id(sPort);
+            keys.forEach(k => {
+                if (listeners[k].appId === id){
+                    win = listeners[k].appId;
+                }
             });
+           
             if (win){
                 utils.getConnected(win).port.postMessage({topic:"intent", data:{intent:msg.intent, context: msg.context}});    
                 utils.bringToFront(win); 
@@ -446,13 +498,24 @@ const joinChannel = (msg, port) => {
          let prevChan = c.channel ? c.channel : "default";
          //are the new channel and previous the same?  then no-op...
          if (prevChan !== chan){
-            //remove from previous channel...
-            contextListeners[prevChan] = contextListeners[prevChan].filter(id => {return id !== _id;} );
-            //add to new
-            if (!contextListeners[chan]){
-            contextListeners[chan] = [];
-            }
-            contextListeners[chan].push(_id);
+            let prevKeys = Object.keys(contextListeners[prevChan]);
+            prevKeys.forEach(k => {
+                //remove from previous channel...
+                let l = contextListeners[prevChan][k];
+                if (l.appId === _id){
+                    //add listener to new channel
+                    //make sure there's a dictionary for the channel first...
+                    if (!contextListeners[chan]){
+                        contextListeners[chan] = {};
+                        }
+                    contextListeners[chan][k] = {appId:_id};
+                    //and delete from old
+                    delete contextListeners[prevChan][k];
+                } 
+                
+                
+            });
+            
             c.channel = chan;
             tabChannels[(port.sender.tab.id + "")] = chan;
             //set the badge state
@@ -580,7 +643,9 @@ export default{
     addIntentListener,
     initContextChannels,
     dropContextListeners,
+    dropContextListener,
     dropIntentListeners,
+    dropIntentListener,
     broadcast,
     raiseIntent,
     resolveIntent,
