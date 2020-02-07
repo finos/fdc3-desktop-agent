@@ -83,7 +83,7 @@ class FDC3ChannelPicker extends HTMLElement {
       shadow.appendChild(wrapper);
 
           const target = wrapper;
-        let defChan = [{id:"default", "visualIdentity":{name:"Default", color:"#ccc",color2:"#999"}}];
+        let defChan = [{id:"default", "displayMetadata":{name:"Default", color:"#ccc",color2:"#999"}}];
        this.channels = defChan.concat(systemChannels ? systemChannels : []);
        console.log(this.channels);
        
@@ -94,8 +94,8 @@ class FDC3ChannelPicker extends HTMLElement {
                 let revert = this.revertItem.bind(this);
                 ch.id = channel.id;
                 ch.className = "picker-item";
-                ch.title = channel.visualIdentity.name;
-                ch.style.backgroundColor = channel.visualIdentity.color;
+                ch.title = channel.displayMetadata.name;
+                ch.style.backgroundColor = channel.displayMetadata.color;
               
                 target.appendChild(ch);
                 ch.addEventListener("click",select);
@@ -119,7 +119,7 @@ class FDC3ChannelPicker extends HTMLElement {
                 chrome.browserAction.setBadgeText({text:"+",
                                     tabId:sender.tab.id});
                 let selectedChannel = this.channels.find(chan => {return chan.id === request.channel});
-                chrome.browserAction.setBadgeBackgroundColor({color:selectedChannel.visualIdentity.color,
+                chrome.browserAction.setBadgeBackgroundColor({color:selectedChannel.displayMetadata.color,
                                 tabId:sender.tab.id});
                 }
 
@@ -143,8 +143,8 @@ class FDC3ChannelPicker extends HTMLElement {
             joinChannel(selection);
                 this.toggle();
                 let selectedChannel = this.channels.find(chan => {return chan.id === selection});
-                if (selectedChannel && selectedChannel.visualIdentity){
-                    picker.style.borderColor = selectedChannel.visualIdentity.color;
+                if (selectedChannel && selectedChannel.displayMetadata){
+                    picker.style.borderColor = selectedChannel.displayMetadata.color;
                 }
         }
     }
@@ -152,13 +152,13 @@ class FDC3ChannelPicker extends HTMLElement {
     hoverItem(ev){
         let selection = ev.target.id;
         let selectedChannel = this.channels.find(chan => {return chan.id === selection});
-        ev.target.style.backgroundColor = selectedChannel.visualIdentity.color2;
+        ev.target.style.backgroundColor = selectedChannel.displayMetadata.color2;
     }
 
     revertItem(ev){
         let selection = ev.target.id;
         let selectedChannel = this.channels.find(chan => {return chan.id === selection});
-        ev.target.style.backgroundColor = selectedChannel.visualIdentity.color;
+        ev.target.style.backgroundColor = selectedChannel.displayMetadata.color;
     }
     toggle() {
       let root = this.shadowRoot;

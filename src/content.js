@@ -93,7 +93,7 @@ const wireTopic = (topic, config) => {
 };
  
  //listen for FDC3 events
- const topics = ["open","raiseIntent","addContextListener","addIntentListener","findIntent","findIntentsByContext"];
+ const topics = ["open","raiseIntent","addContextListener","addIntentListener","findIntent","findIntentsByContext","getCurrentContext","getSystemChannels","getOrCreateChannel"];
  topics.forEach(t => {wireTopic(t);});
  //set the custom ones...
  wireTopic("joinChannel",{cb:(e) => { currentChannel = e.detail.channel;}});
@@ -109,9 +109,9 @@ document.addEventListener("FDC3:resolver-close", e => {
 });
 
 //systemchannels are constant and we don't have to go to the background script, so handle directly
-document.addEventListener("FDC3:getSystemChannels", e => {
-    document.dispatchEvent(new CustomEvent("FDC3:returnSystemChannels",{detail:{data:channels} } ));
-});
+//document.addEventListener("FDC3:getSystemChannels", e => {
+ //   document.dispatchEvent(new CustomEvent("FDC3:returnSystemChannels",{detail:{data:channels} } ));
+//});
 
 
 port.onMessage.addListener(msg => {

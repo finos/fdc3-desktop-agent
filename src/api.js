@@ -4,6 +4,7 @@
 
 function _doFdc3(){
 
+
 const guid = () => {
     const gen = (n) => {
         const rando = () => {
@@ -47,15 +48,52 @@ class Listener {
             //notify the background script
             document.dispatchEvent(new CustomEvent(`FDC3:dropIntentListener`,{detail:{id:this.id, intent:this.intent}}));
         }
+
     }
 }
 
-const wireMethod = (method, detail, isVoid) => {
+/**
+ * the Channel class 
+ */
+class Channel {
+    constructor(id, type, displayMetadata){
+        this.id = id;
+        this.type = type;
+        this.displayMetadata = displayMetadata;
+    }
+
+    broadcast(context){
+        wireMethod("broadcast", {context:context,channel:this.id}, true);
+    }
+
+    getCurrentContext(contextType){
+        return wireMethod("getCurrentContext",{channel:this.id, contextType:contextType});
+    }
+
+    addContextListener(_contextType, _listener) {
+        let listener = arguments.length === 2 ? arguments[1] : arguments[0];
+        let contextType = arguments.length === 2 ? arguments[0] : null;
+        const listenerId = guid();
+        _contextListeners[listenerId] = {handler:listener, contextType: contextType};
+        document.dispatchEvent(new CustomEvent('FDC3:addContextListener', {
+            detail:{
+                id:listenerId, 
+                channel:this.id,
+                contextType:contextType
+            }
+        }));
+        return new Listener("context",listenerId);
+    }
+}
+
+
+
+const wireMethod = (method, detail, config) => {
     const ts = Date.now();
     const eventId = `${method}_${ts}`;
     detail.eventId = eventId;
     detail.ts = ts;
-    if (isVoid){      
+    if (config && config.void){      
         document.dispatchEvent(new CustomEvent(`FDC3:${method}`,{detail:detail}));
     }
     else {
@@ -63,7 +101,11 @@ const wireMethod = (method, detail, isVoid) => {
            
             document.addEventListener(`FDC3:return_${eventId}`,(evt)=>{
                 if (evt.detail){
-                    resolve(evt.detail);
+                    let r = evt.detail
+                    if (config && config.resultHandler){
+                        r = config.resultHandler.call(this,r);
+                    }
+                    resolve(r);
                 }
                 else {
                     reject(evt.detail);
@@ -87,19 +129,23 @@ window.fdc3 = {
     },
     broadcast:function(context){
         //void
-        wireMethod("broadcast", {context:context}, true);
+        wireMethod("broadcast", {context:context}, {void:true});
     },
 
     raiseIntent:function(intent, context){
        return wireMethod("raiseIntent",{intent:intent, context:context});
     },
 
-    addContextListener:function(listener){
+   
+    addContextListener:function(_contextType, _listener){
+        let listener = arguments.length === 2 ? arguments[1] : arguments[0];
+        let contextType = arguments.length === 2 ? arguments[0] : null;
         const listenerId = guid();
-        _contextListeners[listenerId] = listener;
+        _contextListeners[listenerId] = {handler:listener, contextType: contextType};
         document.dispatchEvent(new CustomEvent('FDC3:addContextListener', {
             detail:{
-                id:listenerId
+                id:listenerId,
+                contextType:contextType
             }
         }));
         return new Listener("context",listenerId);
@@ -130,15 +176,20 @@ window.fdc3 = {
     },
 
     getSystemChannels: function(){
-        return new Promise((resolve, reject) => {
-            document.addEventListener("FDC3:returnSystemChannels",evt =>{
-                resolve(evt.detail.data);
-            }, {once : true});
-            document.dispatchEvent(new CustomEvent('FDC3:getSystemChannels', {
-  
-            }));
-        });
+        return wireMethod("getSystemChannels",{},{resultHandler:(r)=>{
+            let channels = r.map(c => {
+                return new Channel(c.id,"system",c.displayMetadata);
+            });
+            return channels;
+        }});
     },
+
+    getOrCreateChannel: function(channelId){
+        return wireMethod("getOrCreateChannel",{channelId:channelId},{resultHandler:(r) =>{
+            return new Channel(r.id,r.type,r.displayMetadata);
+        }});
+    },
+
 
     joinChannel: function(channel){
         return new Promise((resolve, reject) => {
@@ -163,7 +214,9 @@ window.fdc3 = {
      const keys = Object.keys(listeners);
      keys.forEach(k => {
          let l = listeners[k];
-         l.call(this,evt.detail.data.context);
+         if (!l.contextType || (l.contextType && l.contextType === evt.detail.data.context.type)){
+             l.handler.call(this,evt.detail.data.context);
+         }
      });
  });
 
