@@ -121,9 +121,17 @@ const open = async (msg, port) => {
 const getCurrentContext = (msg, port) => {
     return new Promise((resolve, reject) => {
         let channel = msg.data.channel;
-        let ctx = {};
+        let type = msg.data.contextType;
+        let ctx = null;
         if (channel){
-            ctx = contexts[channel][0];
+            if (type){
+                ctx = contexts[channel].find(c => {
+                    return c.type === type;
+                });
+            }
+            else {
+                ctx = contexts[channel][0];
+            }
         }
         resolve(ctx);
     });
@@ -134,7 +142,7 @@ const addContextListener = (msg, port) => {
         let c = utils.getConnected(utils.id(port));
         //use channel from the event message first, or use the channel of the sending app, or use default
         let channel = msg.data.channel ? msg.data.channel : (c && c.channel) ? c.channel : "default";
-        contextListeners[channel][msg.data.id] = {appId:utils.id(port)};
+        contextListeners[channel][msg.data.id] = {appId:utils.id(port),contextType:msg.data.contextType};
         
         if (pending_contexts.length > 0){
             //first cleanup anything old
@@ -146,7 +154,7 @@ const addContextListener = (msg, port) => {
             pending_contexts.forEach((pContext, index) => {
                
                 let portTabId = port.sender.tab.id;
-                if (pContext.tabId === portTabId){
+                if (pContext.tabId === portTabId && (!msg.data.contextType || (msg.data.contextType && msg.data.contextType === pContext.context.type))){
                     console.log("applying pending context", pContext);    
                     //refactor with other instances of this logic
                     port.postMessage({"topic":"context", "data":{"context": pContext.context}});    
@@ -247,14 +255,24 @@ const broadcast = (msg, port) => {
        
         contexts[channel].unshift(msg.data.context);
         //broadcast to listeners
+        //match each app only once - there can be multiple listeners registered for an app - we only care if valid listeners > 0
         let keys = Object.keys(contextListeners[channel]);
+        let matched = [];
         keys.forEach(k => {
             let l = contextListeners[channel][k];
-            let app = utils.getConnected(l.appId);
+            if (!l.contextType || (l.contextType && l.contextType === msg.data.context.type)){
+                if (matched.indexOf(l.appId) < 0){
+                    matched.push(l.appId);
+                }
+            }
+        });
+        matched.forEach(match => {
+            let app = utils.getConnected(match);
             if (app){
                 app.port.postMessage({topic:"context", data:msg.data});
             }
         });
+                  
         resolve(true);
     });
 };

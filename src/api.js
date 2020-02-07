@@ -67,16 +67,19 @@ class Channel {
     }
 
     getCurrentContext(contextType){
-        return wireMethod("getCurrentContext",{channel:this.id});
+        return wireMethod("getCurrentContext",{channel:this.id, contextType:contextType});
     }
 
-    addContextListener(listener) {
+    addContextListener(_contextType, _listener) {
+        let listener = arguments.length === 2 ? arguments[1] : arguments[0];
+        let contextType = arguments.length === 2 ? arguments[0] : null;
         const listenerId = guid();
-        _contextListeners[listenerId] = listener;
+        _contextListeners[listenerId] = {handler:listener, contextType: contextType};
         document.dispatchEvent(new CustomEvent('FDC3:addContextListener', {
             detail:{
                 id:listenerId, 
-                channel:this.id
+                channel:this.id,
+                contextType:contextType
             }
         }));
         return new Listener("context",listenerId);
@@ -133,12 +136,16 @@ window.fdc3 = {
        return wireMethod("raiseIntent",{intent:intent, context:context});
     },
 
-    addContextListener:function(listener){
+   
+    addContextListener:function(_contextType, _listener){
+        let listener = arguments.length === 2 ? arguments[1] : arguments[0];
+        let contextType = arguments.length === 2 ? arguments[0] : null;
         const listenerId = guid();
-        _contextListeners[listenerId] = listener;
+        _contextListeners[listenerId] = {handler:listener, contextType: contextType};
         document.dispatchEvent(new CustomEvent('FDC3:addContextListener', {
             detail:{
-                id:listenerId
+                id:listenerId,
+                contextType:contextType
             }
         }));
         return new Listener("context",listenerId);
@@ -207,7 +214,9 @@ window.fdc3 = {
      const keys = Object.keys(listeners);
      keys.forEach(k => {
          let l = listeners[k];
-         l.call(this,evt.detail.data.context);
+         if (!l.contextType || (l.contextType && l.contextType === evt.detail.data.context.type)){
+             l.handler.call(this,evt.detail.data.context);
+         }
      });
  });
 
