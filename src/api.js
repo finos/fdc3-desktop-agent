@@ -211,13 +211,10 @@ window.fdc3 = {
 
  document.addEventListener("FDC3:context",evt => {
      const listeners = _contextListeners;
-     const keys = Object.keys(listeners);
-     keys.forEach(k => {
-         let l = listeners[k];
-         if (!l.contextType || (l.contextType && l.contextType === evt.detail.data.context.type)){
-             l.handler.call(this,evt.detail.data.context);
-         }
-     });
+     if (evt.detail.data.listenerId && listeners[evt.detail.data.listenerId]){
+        listeners[evt.detail.data.listenerId].handler.call(this,evt.detail.data.context);
+     }
+
  });
 
  document.addEventListener("FDC3:intent",evt => {

@@ -10,7 +10,7 @@ const pendingIntentTimeout = 2 * 60 * 1000;
 let pending_intents = [];
 //collection of queud contexts to apply to tabs when they connect
 let pending_contexts = [];
-//running contexts 
+//running contexts  (by channel)
 let contexts = {default:[]};
 //context listeners
 let contextListeners = {default:{}};
@@ -122,7 +122,7 @@ const getCurrentContext = (msg, port) => {
     return new Promise((resolve, reject) => {
         let channel = msg.data.channel;
         let type = msg.data.contextType;
-        let ctx = null;
+        let ctx = {};
         if (channel){
             if (type){
                 ctx = contexts[channel].find(c => {
@@ -130,7 +130,7 @@ const getCurrentContext = (msg, port) => {
                 });
             }
             else {
-                ctx = contexts[channel][0];
+                ctx = contexts[channel][0] ? contexts[channel][0] : {};
             }
         }
         resolve(ctx);
@@ -142,7 +142,11 @@ const addContextListener = (msg, port) => {
         let c = utils.getConnected(utils.id(port));
         //use channel from the event message first, or use the channel of the sending app, or use default
         let channel = msg.data.channel ? msg.data.channel : (c && c.channel) ? c.channel : "default";
-        contextListeners[channel][msg.data.id] = {appId:utils.id(port),contextType:msg.data.contextType};
+        //distinguish "channel listeners" - set on the Channel directly and not movable with channel membership and not subject to default rules
+        contextListeners[channel][msg.data.id] = {
+            "appId":utils.id(port),
+            "contextType":msg.data.contextType, 
+            "isChannel":(msg.data.channel != null)};
         
         if (pending_contexts.length > 0){
             //first cleanup anything old
@@ -246,33 +250,44 @@ const addIntentListener = (msg, port) => {
 
 };
 
+
 const broadcast = (msg, port) => {
     return new Promise((resolve, reject) => {
         let c = utils.getConnected((utils.id(port)));
         //use channel on message first - if one is specified
         let channel = msg.data.channel ? msg.data.channel : c.channel ? c.channel : "default";
         //is the app on a channel?
-       
+        // update the channel state
         contexts[channel].unshift(msg.data.context);
+
         //broadcast to listeners
+        //match specific listeners on contextType and push context messages for specific listeners
+        //do not broadcast if the channel is "default", unless it is a "channel" type listener
         //match each app only once - there can be multiple listeners registered for an app - we only care if valid listeners > 0
-        let keys = Object.keys(contextListeners[channel]);
-        let matched = [];
-        keys.forEach(k => {
-            let l = contextListeners[channel][k];
-            if (!l.contextType || (l.contextType && l.contextType === msg.data.context.type)){
-                if (matched.indexOf(l.appId) < 0){
-                    matched.push(l.appId);
+        //if (channel !== "default"){
+            let keys = Object.keys(contextListeners[channel]);
+            let matched = [];
+            keys.forEach(k => {
+                let l = contextListeners[channel][k];
+                if (!l.contextType || (l.contextType && l.contextType === msg.data.context.type)){
+                    //if (matched.indexOf(l.appId) < 0){
+                    //    matched.push(l.appId);
+                    //}
+                    if (channel !== "default" || l.isChannel){
+                        //mixin the listenerId
+                        let data = {"listenerId":k, "eventId":msg.data.eventId, "ts":msg.data.ts, "context":msg.data.context};
+                        utils.getConnected(l.appId).port.postMessage({topic:"context", listenerId:k, data:data});
+                    }
                 }
-            }
-        });
-        matched.forEach(match => {
-            let app = utils.getConnected(match);
-            if (app){
-                app.port.postMessage({topic:"context", data:msg.data});
-            }
-        });
-                  
+            });
+
+          /*  matched.forEach(match => {
+                let app = utils.getConnected(match);
+                if (app){
+                    app.port.postMessage({topic:"context", data:msg.data});
+                }
+            });*/
+        //}                  
         resolve(true);
     });
 };
@@ -534,21 +549,25 @@ const joinChannel = (msg, port) => {
         let chan = msg.data.channel;
         let _id = utils.id(port);
         let c = utils.getConnected(_id);
+        let listeners = [];
         //get the previous channel
          let prevChan = c.channel ? c.channel : "default";
          //are the new channel and previous the same?  then no-op...
          if (prevChan !== chan){
             let prevKeys = Object.keys(contextListeners[prevChan]);
             prevKeys.forEach(k => {
-                //remove from previous channel...
+                //if not a "channel" type listener, remove from previous channel...
                 let l = contextListeners[prevChan][k];
-                if (l.appId === _id){
-                    //add listener to new channel
+                if (l.appId === _id && !l.isChannel){
+                    //... and add listener to new channel
                     //make sure there's a dictionary for the channel first...
                     if (!contextListeners[chan]){
                         contextListeners[chan] = {};
                         }
-                    contextListeners[chan][k] = {appId:_id};
+                    //make sure we copy the whole listener...
+                    contextListeners[chan][k] = {appId:_id, contextType:l.contextType};
+                    //make a list of listners on the app to push an update to
+                    listeners.push(k);
                     //and delete from old
                     delete contextListeners[prevChan][k];
                 } 
@@ -568,7 +587,10 @@ const joinChannel = (msg, port) => {
             chrome.browserAction.setBadgeBackgroundColor({color:color,
                 tabId:port.sender.tab.id});
             //push current channel context 
-            port.postMessage({topic:"context", data:{context:contexts[chan][0]}});
+            listeners.forEach(l => {
+                port.postMessage({topic:"context", data:{listenerId:l, context:contexts[chan][0]}});
+            });
+
         }
         resolve(true);
     });
