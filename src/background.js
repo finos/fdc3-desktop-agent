@@ -72,10 +72,13 @@ chrome.runtime.onConnect.addListener( async function(port) {
                 console.log(`Ambiguous match - ${data.length} items found.`);
             }
             utils.setConnected(app_id,{port:port, directoryData:null});
+            
             port.postMessage({topic:"environmentData", 
                         data:envD});
-             
+
         }
+
+        listeners.applyPendingChannel(port);
     
     }
     catch (e){

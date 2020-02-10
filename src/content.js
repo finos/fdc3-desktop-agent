@@ -280,7 +280,7 @@ let resolver = null;
             port.postMessage({topic:"joinChannel", "data": {channel:request.channel}}); 
         }
         else if (request.message === "popup-open"){
-            port.postMessage({topic:"open", "data": {name:request.name}}); 
+            port.postMessage({topic:"open", "data": {name:request.name, autojoin:true}}); 
         }
   
       else if (request.message === "intent_resolver"){

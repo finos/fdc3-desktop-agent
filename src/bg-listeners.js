@@ -10,6 +10,9 @@ const pendingIntentTimeout = 2 * 60 * 1000;
 let pending_intents = [];
 //collection of queud contexts to apply to tabs when they connect
 let pending_contexts = [];
+//collection of queued channels 
+let pending_channels = [];
+
 //running contexts 
 let contexts = {default:[]};
 //context listeners
@@ -96,6 +99,16 @@ const open = async (msg, port) => {
                 if (r && r.start_url){
                    
                     chrome.tabs.create({url:r.start_url},tab =>{
+                        //autojoin the new app to the channel which the 'open' call is sourced from
+                        if (msg.data.autojoin){
+                            //get channel from current port context
+                            let _id = utils.id(port);
+                            let c = utils.getConnected(_id);
+                            //get the previous channel
+                            let channel = c.channel
+                            //set the pending channel newly opened window
+                            setPendingChannel(tab.id, channel);
+                        }
                         if (msg.data.context){
                             setPendingContext(tab.id, msg.data.context);
                         }
@@ -143,14 +156,13 @@ const addContextListener = (msg, port) => {
         //use channel from the event message first, or use the channel of the sending app, or use default
         let channel = msg.data.channel ? msg.data.channel : (c && c.channel) ? c.channel : "default";
         contextListeners[channel][msg.data.id] = {appId:utils.id(port),contextType:msg.data.contextType};
-        
         if (pending_contexts.length > 0){
             //first cleanup anything old
             let n = Date.now();
             pending_contexts = pending_contexts.filter(i => {
                 return n - i.ts < pendingIntentTimeout;
             });
-            //next, match on url and intent
+            //next, match on tabId and intent
             pending_contexts.forEach((pContext, index) => {
                
                 let portTabId = port.sender.tab.id;
@@ -160,7 +172,7 @@ const addContextListener = (msg, port) => {
                     port.postMessage({"topic":"context", "data":{"context": pContext.context}});    
                     utils.bringToFront(port.sender.tab); 
                     //remove the applied context
-                    pending_intents.splice(index,1);
+                    pending_contexts.splice(index,1);
                 }
             });
     
@@ -208,6 +220,36 @@ const setPendingIntent =function(tabId, intent, context){
 const setPendingContext =function(tabId, context){
     pending_contexts.push({ts:Date.now(), tabId:tabId, context:context});
   };
+
+  const setPendingChannel =function(tabId, channel){
+    pending_channels.push({ts:Date.now(), tabId:tabId, channel:channel});
+  };
+
+  const applyPendingChannel = function(port){
+
+    if (pending_channels.length > 0){
+        //first cleanup anything old
+        let n = Date.now();
+        pending_channels = pending_channels.filter(i => {
+            return n - i.ts < pendingIntentTimeout;
+        });
+        //next, match on tabId and intent
+        pending_channels.forEach((pChannel, index) => {
+           
+            let portTabId = port.sender.tab.id;
+            if (pChannel.tabId === portTabId){
+                console.log("applying pending channel", pChannel);    
+                joinPortToChannel(pChannel.channel,port);
+                //utils.bringToFront(port.sender.tab); 
+                //remove the applied context
+                pending_channels.splice(index,1);
+            }
+        });
+
+        
+    }
+};
+
 
 const addIntentListener = (msg, port) => {
     return new Promise((resolve, reject) =>{
@@ -529,47 +571,52 @@ const resolveIntent = async (msg, port) => {
             });
 };
 
+const joinPortToChannel = (channel, port) => {
+
+    let chan = channel;
+    let _id = utils.id(port);
+    let c = utils.getConnected(_id);
+    //get the previous channel
+     let prevChan = c.channel ? c.channel : "default";
+     //are the new channel and previous the same?  then no-op...
+     if (prevChan !== chan){
+        let prevKeys = Object.keys(contextListeners[prevChan]);
+        prevKeys.forEach(k => {
+            //remove from previous channel...
+            let l = contextListeners[prevChan][k];
+            if (l.appId === _id){
+                //add listener to new channel
+                //make sure there's a dictionary for the channel first...
+                if (!contextListeners[chan]){
+                    contextListeners[chan] = {};
+                    }
+                contextListeners[chan][k] = {appId:_id};
+                //and delete from old
+                delete contextListeners[prevChan][k];
+            } 
+            
+            
+        });
+        
+        c.channel = chan;
+        tabChannels[(port.sender.tab.id + "")] = chan;
+        //set the badge state
+        let bText = chan === "default" ? "" : "+";
+        chrome.browserAction.setBadgeText({text:bText,tabId:port.sender.tab.id});
+        
+        let channels = utils.getSystemChannels();
+        let selectedChannel = channels.find(_chan => {return _chan.id === chan;});
+        let color = selectedChannel.displayMetadata ? selectedChannel.displayMetadata.color : "";
+        chrome.browserAction.setBadgeBackgroundColor({color:color,
+            tabId:port.sender.tab.id});
+        //push current channel context 
+        port.postMessage({topic:"context", data:{context:contexts[chan][0]}});
+    }
+};
+
 const joinChannel = (msg, port) => {
     return new Promise((resolve, reject) => {
-        let chan = msg.data.channel;
-        let _id = utils.id(port);
-        let c = utils.getConnected(_id);
-        //get the previous channel
-         let prevChan = c.channel ? c.channel : "default";
-         //are the new channel and previous the same?  then no-op...
-         if (prevChan !== chan){
-            let prevKeys = Object.keys(contextListeners[prevChan]);
-            prevKeys.forEach(k => {
-                //remove from previous channel...
-                let l = contextListeners[prevChan][k];
-                if (l.appId === _id){
-                    //add listener to new channel
-                    //make sure there's a dictionary for the channel first...
-                    if (!contextListeners[chan]){
-                        contextListeners[chan] = {};
-                        }
-                    contextListeners[chan][k] = {appId:_id};
-                    //and delete from old
-                    delete contextListeners[prevChan][k];
-                } 
-                
-                
-            });
-            
-            c.channel = chan;
-            tabChannels[(port.sender.tab.id + "")] = chan;
-            //set the badge state
-            let bText = chan === "default" ? "" : "+";
-            chrome.browserAction.setBadgeText({text:bText,tabId:port.sender.tab.id});
-            
-            let channels = utils.getSystemChannels();
-            let selectedChannel = channels.find(_chan => {return _chan.id === chan;});
-            let color = selectedChannel.displayMetadata ? selectedChannel.displayMetadata.color : "";
-            chrome.browserAction.setBadgeBackgroundColor({color:color,
-                tabId:port.sender.tab.id});
-            //push current channel context 
-            port.postMessage({topic:"context", data:{context:contexts[chan][0]}});
-        }
+        joinPortToChannel(msg.data.channel,port);
         resolve(true);
     });
 };
@@ -717,6 +764,7 @@ const getTabTitle = (msg, port) => {
         });
     });
 };
+
 export default{ 
     open,
     addContextListener,
@@ -736,5 +784,6 @@ export default{
     findIntentsByContext,
     getCurrentContext,
     getSystemChannels,
-    getOrCreateChannel
+    getOrCreateChannel,
+    applyPendingChannel
 };
