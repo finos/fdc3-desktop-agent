@@ -163,6 +163,7 @@ const addContextListener = (msg, port) => {
             "contextType":msg.data.contextType, 
             "isChannel":(msg.data.channel != null)};
 
+        console.log("checking pending contexts",pending_contexts);
         if (pending_contexts.length > 0){
             //first cleanup anything old
             let n = Date.now();
@@ -173,13 +174,20 @@ const addContextListener = (msg, port) => {
             pending_contexts.forEach((pContext, index) => {
                
                 let portTabId = port.sender.tab.id;
-                if (pContext.tabId === portTabId && (!msg.data.contextType || (msg.data.contextType && msg.data.contextType === pContext.context.type))){
-                    console.log("applying pending context", pContext);    
-                    //refactor with other instances of this logic
-                    port.postMessage({"topic":"context", "data":{"context": pContext.context}});    
-                    utils.bringToFront(port.sender.tab); 
-                    //remove the applied context
-                    pending_contexts.splice(index,1);
+                if (pContext.tabId === portTabId){ //&& (!msg.data.contextType || (msg.data.contextType && msg.data.contextType === pContext.context.type))){
+                    console.log("applying pending context", pContext);   
+                    //iterate through each of the registered context listeners, match on context type
+                    let listenerKeys = Object.keys(contextListeners[channel]);
+                    listenerKeys.forEach(k => {
+                        let l = contextListeners[channel][k];
+                        if (!l.contextType || (l.contextType && l.contextType === pContext.context.type)){
+                            port.postMessage({"topic":"context", "data":{"context": pContext.context,"listenerId":k}});    
+                            utils.bringToFront(port.sender.tab); 
+                            //remove the applied context
+                            pending_contexts.splice(index,1);
+                        }
+                    });
+                    
                 }
             });
     
@@ -245,7 +253,9 @@ const setPendingContext =function(tabId, context){
            
             let portTabId = port.sender.tab.id;
             if (pChannel.tabId === portTabId){
-                console.log("applying pending channel", pChannel);    
+                console.log("applying pending channel", pChannel);  
+                //send a message back to the content script - updating its channel...
+                port.postMessage({topic:"setCurrentChannel",data:{channel:pChannel.channel}});  
                 joinPortToChannel(pChannel.channel,port);
                 //utils.bringToFront(port.sender.tab); 
                 //remove the applied context
@@ -599,9 +609,10 @@ const joinPortToChannel = (channel, port) => {
      let prevChan = c.channel ? c.channel : "default";
      //are the new channel and previous the same?  then no-op...
      if (prevChan !== chan){
+         //iterate through the listeners
         let prevKeys = Object.keys(contextListeners[prevChan]);
         prevKeys.forEach(k => {
-            //remove from previous channel...
+            //remove listener from previous channel...
             let l = contextListeners[prevChan][k];
             if (l.appId === _id){
                 //add listener to new channel
@@ -630,7 +641,25 @@ const joinPortToChannel = (channel, port) => {
         chrome.browserAction.setBadgeBackgroundColor({color:color,
             tabId:port.sender.tab.id});
         //push current channel context 
-        port.postMessage({topic:"context", data:{context:contexts[chan][0]}});
+        // send to individual listenerIds
+        let listenerKeys = Object.keys(contextListeners[chan]);
+        let contextSent = false;
+        if (listenerKeys.length > 0){
+            listenerKeys.forEach(k => {
+                let l = contextListeners[chan][k];
+                if ((l.appId === utils.id(port)) && !l.contextType || (l.contextType && l.contextType === contexts[chan][0].type)){
+                    port.postMessage({"topic":"context", "data":{"context": contexts[chan][0],"listenerId":k}});  
+                    contextSent = true;  
+                    //utils.bringToFront(port.sender.tab); 
+                    //remove the applied context
+                //  pending_contexts.splice(index,1);
+                }
+            });
+        }
+        if (!contextSent){
+            setPendingContext(port.sender.tab.id,contexts[chan][0]);
+        }
+        //port.postMessage({topic:"context", data:{context:contexts[chan][0]}});
     }
 };
 

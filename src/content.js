@@ -153,6 +153,7 @@ port.onMessage.addListener(msg => {
     }
    else  if (msg.topic === "context"){
        //check for handlers at the content script layer (automatic handlers) - if not, dispatch to the API layer...
+       
        if (msg.data && msg.data.context){
         if (_contextHandlers.indexOf(msg.data.context.type) > -1 && contentManifest){
             let contextMeta = contentManifest.contexts.find(i => {
@@ -249,6 +250,11 @@ port.onMessage.addListener(msg => {
         document.dispatchEvent(new CustomEvent("FDC3:intent",{
             detail:{data:msg.data}
         })); 
+    }
+    else if (msg.topic === "setCurrentChannel"){
+        if (msg.data.channel){
+            currentChannel = msg.data.channel;
+        }
     }
 
 });

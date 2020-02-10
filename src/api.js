@@ -210,6 +210,7 @@ window.fdc3 = {
  };
 
  document.addEventListener("FDC3:context",evt => {
+     console.log("context!",evt);
      const listeners = _contextListeners;
      if (evt.detail.data.listenerId && listeners[evt.detail.data.listenerId]){
         listeners[evt.detail.data.listenerId].handler.call(this,evt.detail.data.context);
