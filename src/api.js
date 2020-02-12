@@ -204,8 +204,17 @@ window.fdc3 = {
                 
 
         });
-    }
+    },
 
+    leaveCurrentChannel: function(){
+        return wireMethod("leaveCurrentChannel", {});
+    },
+
+    getCurrentChannel: function(){
+        return wireMethod("getCurrentChannel",{},{resultHandler:(r) =>{
+            return new Channel(r.id,r.type,r.displayMetadata);
+        }});
+    }
    
  };
 
