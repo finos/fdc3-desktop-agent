@@ -25,6 +25,8 @@ export default[
     {"id":"purple","type":"system","displayMetadata":
         {"color":"#C355F5",
         "color2":"#AA26DA",
-        "name":"Purple"}}
+        "name":"Purple"}},
+    {"id":"global","type":"system","displayMetadata":
+        {"name":"Global"}}
 ];
 
