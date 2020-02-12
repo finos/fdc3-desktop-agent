@@ -24,6 +24,11 @@ const ResolveError = {
     ResolverTimeout:"ResolverTimeout"
   };
 
+const ChannelError = {
+    NoChannelFound:"NoChannelFound",
+    AccessDenied:"AccessDenied",
+    CreationFailed:"CreationFailed"
+  };
 
 //connected end points / apps
 let connected = {};
@@ -119,5 +124,6 @@ export default{
     bringToFront,
     OpenError,
     ResolveError,
+    ChannelError,
     id
 };

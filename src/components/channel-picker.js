@@ -83,8 +83,9 @@ class FDC3ChannelPicker extends HTMLElement {
       shadow.appendChild(wrapper);
 
           const target = wrapper;
-        let defChan = [{id:"default", "displayMetadata":{name:"Default", color:"#ccc",color2:"#999"}}];
-       this.channels = defChan.concat(systemChannels ? systemChannels : []);
+        let defChan = [{id:"default", "displayMetadata":{name:"Linking Off", color:"#ccc",color2:"#999"}}];
+        //add the "default" option and remove the global channel from the list
+       this.channels = defChan.concat(systemChannels ? systemChannels.filter(c => {return c.id !== "global";}) : []);
        console.log(this.channels);
        
           this.channels.forEach(channel => {
@@ -145,6 +146,7 @@ class FDC3ChannelPicker extends HTMLElement {
                 let selectedChannel = this.channels.find(chan => {return chan.id === selection});
                 if (selectedChannel && selectedChannel.displayMetadata){
                     picker.style.borderColor = selectedChannel.displayMetadata.color;
+                    
                 }
         }
     }

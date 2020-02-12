@@ -204,13 +204,21 @@ window.fdc3 = {
                 
 
         });
-    }
+    },
 
+    leaveCurrentChannel: function(){
+        return wireMethod("leaveCurrentChannel", {});
+    },
+
+    getCurrentChannel: function(){
+        return wireMethod("getCurrentChannel",{},{resultHandler:(r) =>{
+            return new Channel(r.id,r.type,r.displayMetadata);
+        }});
+    }
    
  };
 
  document.addEventListener("FDC3:context",evt => {
-     console.log("context!",evt);
      const listeners = _contextListeners;
      if (evt.detail.data.listenerId && listeners[evt.detail.data.listenerId]){
         listeners[evt.detail.data.listenerId].handler.call(this,evt.detail.data.context);
