@@ -268,13 +268,13 @@ const setPendingContext =function(tabId, context){
         
     }
     else {
-        //is the 'public' channel set as default?
-        chrome.storage.sync.get(["default_public"], (items) => {
-            if (items.default_public) {
-                console.log("public channel is set to default");
+        //is the 'global' channel set as default?
+        chrome.storage.sync.get(["default_global"], (items) => {
+            if (items.default_global) {
+                console.log("global channel is set to default");
                 //send a message back to the content script - updating its channel...
-                port.postMessage({topic:"setCurrentChannel",data:{channel:"public"}});  
-                joinPortToChannel("public",port);
+                port.postMessage({topic:"setCurrentChannel",data:{channel:"global"}});  
+                joinPortToChannel("global",port);
             }
                 
         });

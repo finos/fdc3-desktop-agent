@@ -17,7 +17,8 @@ new autoComplete({
         // User search query
         const query = document.querySelector("#autoComplete").value;
         // Fetch External Data Source
-        const source = await fetch(`${utils.directoryUrl}/apps/search?text=${query}`);
+        const directoryUrl = await utils.getDirectoryUrl();
+        const source = await fetch(`${directoryUrl}/apps/search?text=${query}`);
         // Format data into JSON
         const data = await source.json();
         // Return Fetched data

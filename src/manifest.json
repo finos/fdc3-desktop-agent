@@ -3,6 +3,8 @@
     "version": "0.1",
     "description": "FDC3 Desktop Agent implementation.",
     "manifest_version": 2,
+    "options_page" : "options.html",
+    
 
     "background": {
         "scripts": ["background.js"],
@@ -17,7 +19,8 @@
     },
     "permissions": [
       "tabs",
-      "activeTab"
+      "activeTab",
+      "storage"
     ],
     "content_scripts": [
         {

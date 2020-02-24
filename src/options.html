@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FDC3 Desktop Agent Extension Options</title>
+    <style>
+            body {
+                font-family: sans-serif;
+            }
+
+            h1 {
+                font-size:24px;
+                padding-left:24px;
+            }
+
+            .row {
+                padding-top:9px;
+                padding-left:9px;
+                display: flex;
+                flex-flow: row;
+                flex-wrap:nowrap;
+            }
+
+            .label {
+                padding-right: 6px;
+                width: 300px;
+                text-align: right;
+                margin-top: 3px;
+                font-size: 14px;
+            }
+
+            .field input {
+                font-family:sans-serif;
+                font-size:14px;
+                width:300px;
+            }
+
+            .field textarea {
+                font-family:sans-serif;
+                font-size:14px;
+                width:300px;
+            }
+            .field  #save_button {
+                font-family:sans-serif;
+                font-size:14px;
+                width:75px;
+    
+            }
+
+            #status {
+            font-size:14px;
+            margin-left:-150px;
+            margin-top:-100px;
+            text-align: center;
+            padding:100px;
+            left:50%;
+            top:50%;
+            background-color:#eee;
+            color:#669933;
+            position:absolute;
+            z-index:9999;
+            display:none;
+            }
+        </style>
+</head>
+<body>
+
+<h1>FDC3 Desktop Agent Extension Options</h1>
+
+<div class="row">
+    <div class="label">App Directory URL</div>
+    <div class="field">
+            <input type="text" id="appd_url">
+    </div>
+    
+</div>
+<div class="row">
+        <div class="label">Open new tabs in 'global' channel</div>
+        <div class="field">
+                <input type="checkbox" id="default_global">
+        </div>
+        
+    </div>
+<div id="status"></div>
+
+<div class="row">
+    <div class="label"></div>
+    <div class="field">
+        <button id="save">Save</button>
+    </div>
+</div>
+<script src="options.js"></script>
+</body>
+</html>
