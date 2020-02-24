@@ -11,7 +11,9 @@ This project aims to create a full featured FDC3 implementation.  These features
 The extension makes the FDC3 API available to all pages loaded in Chrome (except incongnito pages - where the extension does not run).  This API will be kept up to date with the developing FDC3 standards.
 
 ### app directory 
-The extension uses an app directory hosted at [https://appd.kolbito.com](https://appd.kolbito.com) by default. This can be overridden in the code (see below).  The extension also works without a directory.  The directory is not currently open source, but it is public for reads.  If you want to get something added to the directoy, please file an issue to this project.
+The extension uses an app directory hosted at [https://appd.kolbito.com](https://appd.kolbito.com) by default. This can be overridden in the options panel for the extension.  The extension also works without a directory. 
+
+The default directory is not currently open source, but it is public for reads.  If you want to get something added, please file an issue to this project.
 
 ### Intent Resolution
 When an intent is raised that has multiple possible providers, the extension will bring up a dialog in the Chrome tab raising the intent and present the apps available.  This list may include apps from the app directory as well as apps running that have registered intents with the extension (they don't need to be in the app directory). 
@@ -41,6 +43,13 @@ Here are some examples of the extension in actions
 ### intent resolution dialogue
 ![image](/images/intent-resolution.png)
 
+## options
+The extension exposes some options to let you customize the behavior of the desktop agent.  Right click on the *FDC3 browser action button* in the Chrome toolbar to access the options page.  
+
+Current options are:
+
+- **App Directory URL**   Let's you customize the app directory the extension points to.  Defaults to the public directory at https://appd.kolbito.com
+- **Open new tabs in 'global' channel** Sets the channel behavior, so that tabs will be put on the 'global' channel by default, allowing tabs to broadcast on recieve context out of the box, without being explicitly put on a channel.
 
 ## getting the extension
 The extension is not published with Chrome. To use it, you will need to get the project and install it locally.
