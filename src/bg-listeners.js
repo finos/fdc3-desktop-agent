@@ -92,7 +92,8 @@ const getTabChannel = (id) => {
 
 const open = async (msg, port) => {
     return new Promise(async (resolve, reject) => {
-        const result = await fetch(`${utils.directoryUrl}/apps/${msg.data.name}`);
+        const directoryUrl = await utils.getDirectoryUrl();
+        const result = await fetch(`${directoryUrl}/apps/${msg.data.name}`);
         if (result) {
             try {
                 const r = await result.json();
@@ -265,6 +266,18 @@ const setPendingContext =function(tabId, context){
 
         
     }
+    else {
+        //is the 'public' channel set as default?
+        chrome.storage.sync.get(["default_public"], (items) => {
+            if (items.default_public) {
+                console.log("public channel is set to default");
+                //send a message back to the content script - updating its channel...
+                port.postMessage({topic:"setCurrentChannel",data:{channel:"public"}});  
+                joinPortToChannel("public",port);
+            }
+                
+        });
+    }
 };
 
 
@@ -378,8 +391,8 @@ const raiseIntent = async (msg, port) => {
         if (msg.data.context){
             ctx = msg.data.context.type;
         }
-
-        const _r = await fetch(`${utils.directoryUrl}/apps/search?intent=${msg.data.intent}&context=${ctx}`);
+        const directoryUrl = await utils.getDirectoryUrl();
+        const _r = await fetch(`${directoryUrl}/apps/search?intent=${msg.data.intent}&context=${ctx}`);
         if (_r){ 
             let data = null;
             try {
@@ -720,7 +733,8 @@ const findIntent = async (msg, port) => {
         let intent = msg.data.intent;
         let context = msg.data.context;
         if (intent){
-            let url = `${utils.directoryUrl}/apps/search?intent=${intent}`;
+            const directoryUrl = await utils.getDirectoryUrl();
+            let url = `${directoryUrl}/apps/search?intent=${intent}`;
             if (context){
                 //only use type
                 if (typeof context === "object"){
@@ -769,7 +783,8 @@ const findIntentsByContext = async (msg, port) => {
             context = context.type;
         }    
         if (context){
-            let url = `${utils.directoryUrl}/apps/search?context=${context}`;   
+            const directoryUrl = await utils.getDirectoryUrl();
+            let url = `${directoryUrl}/apps/search?context=${context}`;   
             let _r = await fetch(url);
             let d = await _r.json();
             let r = [];

@@ -4,8 +4,19 @@
 
 import channels from "./system-channels";
 
+
+const getDirectoryUrl = async()=> {
+    return new Promise (async (resolve, reject) => {
+    chrome.storage.sync.get(["appd_url"], (items) => {
+        const r = (items.appd_url) ? items.appd_url : "https://appd.kolbito.com";
+            console.log(r);
+            resolve(r);
+    });
+});
+};
+
 //const directoryUrl = "http://brokenfdc3.com";
-const directoryUrl = "https://appd.kolbito.com";
+//const directoryUrl = "https://appd.kolbito.com";
 //const directoryUrl = "http://localhost:3000";
 
 /***
@@ -111,7 +122,7 @@ const id = (port, tab) => {
 };
 
 export default{
-    directoryUrl,
+    getDirectoryUrl,
     getSystemChannels,
     setConnected,
     getConnected,
