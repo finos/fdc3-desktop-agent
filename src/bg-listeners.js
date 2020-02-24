@@ -3,6 +3,7 @@
  */
 
 import utils from "./utils";
+import systemChannels from "./system-channels";
 
 //wait 2 minutes for pending intents to connect
 const pendingIntentTimeout = 2 * 60 * 1000;
@@ -324,38 +325,33 @@ const broadcast = (msg, port) => {
         let c = utils.getConnected((utils.id(port)));
         //use channel on message first - if one is specified
         let channel = msg.data.channel ? msg.data.channel : c.channel ? c.channel : "default";
-        //is the app on a channel?
-        // update the channel state
-        contexts[channel].unshift(msg.data.context);
+        if (channel !== "default"){
+            //is the app on a channel?
+            // update the channel state
+            contexts[channel].unshift(msg.data.context);
 
-        //broadcast to listeners
-        //match specific listeners on contextType and push context messages for specific listeners
-        //do not broadcast if the channel is "default", unless it is a "channel" type listener
-        //match each app only once - there can be multiple listeners registered for an app - we only care if valid listeners > 0
-        //if (channel !== "default"){
-            let keys = Object.keys(contextListeners[channel]);
-            let matched = [];
-            keys.forEach(k => {
-                let l = contextListeners[channel][k];
-                if (!l.contextType || (l.contextType && l.contextType === msg.data.context.type)){
-                    //if (matched.indexOf(l.appId) < 0){
-                    //    matched.push(l.appId);
-                    //}
-                    if (channel !== "default" || l.isChannel){
-                        //mixin the listenerId
-                        let data = {"listenerId":k, "eventId":msg.data.eventId, "ts":msg.data.ts, "context":msg.data.context};
-                        utils.getConnected(l.appId).port.postMessage({topic:"context", listenerId:k, data:data});
+            //broadcast to listeners
+            //match specific listeners on contextType and push context messages for specific listeners
+            //do not broadcast if the channel is "default" - this means "off"
+            //match each app only once - there can be multiple listeners registered for an app - we only care if valid listeners > 0
+            //if (channel !== "default"){
+                let keys = Object.keys(contextListeners[channel]);
+                let matched = [];
+                keys.forEach(k => {
+                    let l = contextListeners[channel][k];
+                    if (!l.contextType || (l.contextType && l.contextType === msg.data.context.type)){
+                        //if (matched.indexOf(l.appId) < 0){
+                        //    matched.push(l.appId);
+                        //}
+                        if (channel !== "default" ){
+                            //mixin the listenerId
+                            let data = {"listenerId":k, "eventId":msg.data.eventId, "ts":msg.data.ts, "context":msg.data.context};
+                            utils.getConnected(l.appId).port.postMessage({topic:"context", listenerId:k, data:data});
+                        }
                     }
-                }
-            });
-
-          /*  matched.forEach(match => {
-                let app = utils.getConnected(match);
-                if (app){
-                    app.port.postMessage({topic:"context", data:msg.data});
-                }
-            });*/
-        //}                  
+                });
+                 
+            }
         resolve(true);
     });
 };
@@ -619,9 +615,9 @@ const joinPortToChannel = (channel, port) => {
     let _id = utils.id(port);
     let c = utils.getConnected(_id);
     //get the previous channel
-     let prevChan = c.channel ? c.channel : "default";
-     //are the new channel and previous the same?  then no-op...
-     if (prevChan !== chan){
+    let prevChan = c.channel ? c.channel : "default";
+    //are the new channel and previous the same?  then no-op...
+    if (prevChan !== chan){
          //iterate through the listeners
         let prevKeys = Object.keys(contextListeners[prevChan]);
         prevKeys.forEach(k => {
@@ -644,33 +640,42 @@ const joinPortToChannel = (channel, port) => {
         
         c.channel = chan;
         tabChannels[(port.sender.tab.id + "")] = chan;
-        //set the badge state
-        let bText = chan === "default" ? "" : "+";
-        chrome.browserAction.setBadgeText({text:bText,tabId:port.sender.tab.id});
-        
+
+        //update the UI for the color picker in the extension UI
+        //if the joined channel is the special "default" identiefier or NOT a system channel, then skip this part
         let channels = utils.getSystemChannels();
         let selectedChannel = channels.find(_chan => {return _chan.id === chan;});
-        let color = selectedChannel.displayMetadata ? selectedChannel.displayMetadata.color : "";
-        chrome.browserAction.setBadgeBackgroundColor({color:color,
-            tabId:port.sender.tab.id});
-        //push current channel context 
-        // send to individual listenerIds
-        let listenerKeys = Object.keys(contextListeners[chan]);
-        let contextSent = false;
-        if (listenerKeys.length > 0){
-            listenerKeys.forEach(k => {
-                let l = contextListeners[chan][k];
-                if ((l.appId === utils.id(port)) && !l.contextType || (l.contextType && l.contextType === contexts[chan][0].type)){
-                    port.postMessage({"topic":"context", "data":{"context": contexts[chan][0],"listenerId":k}});  
-                    contextSent = true;  
-                    //utils.bringToFront(port.sender.tab); 
-                    //remove the applied context
-                //  pending_contexts.splice(index,1);
-                }
-            });
+        if (chan === "default" || selectedChannel){
+            //set the badge state
+            let bText = (chan === "default" || chan === "global") ? "" : "+";
+            chrome.browserAction.setBadgeText({text:bText,tabId:port.sender.tab.id});    
+        
+            let color = selectedChannel && selectedChannel.displayMetadata && selectedChannel.displayMetadata.color ? selectedChannel.displayMetadata.color : "";
+            chrome.browserAction.setBadgeBackgroundColor({color:color,
+                tabId:port.sender.tab.id});
         }
-        if (!contextSent){
-            setPendingContext(port.sender.tab.id,contexts[chan][0]);
+        //push current channel context 
+        //if there is a context...
+        if (! contexts[chan]){
+            contexts[chan] = [];
+        }
+        let ctx = contexts[chan][0];
+        if (ctx){
+            // send to individual listenerIds
+            let listenerKeys = Object.keys(contextListeners[chan]);
+            let contextSent = false;
+            if (listenerKeys.length > 0){
+                listenerKeys.forEach(k => {
+                    let l = contextListeners[chan][k];
+                    if ((l.appId === utils.id(port)) && !l.contextType || (l.contextType && l.contextType === ctx.type)){
+                        port.postMessage({"topic":"context", "data":{"context": ctx,"listenerId":k}});  
+                        contextSent = true;  
+                    }
+                });
+            }
+            if (!contextSent){
+                setPendingContext(port.sender.tab.id,contexts[chan][0]);
+            }
         }
         //port.postMessage({topic:"context", data:{context:contexts[chan][0]}});
     }
@@ -689,37 +694,67 @@ const getSystemChannels = async (msg, port) => {
     });
 };
 
+//generate / get full channel object from an id - returns null if channel id is not a system channel or a registered app channel
+const getChannelMeta = (id) => {
+    let channel = null;
+    //is it a system channel?
+    const sChannels = utils.getSystemChannels();
+    let sc = sChannels.find(c => {
+        return c.id === id;
+    });
+
+    if (sc){
+        channel = {id:id, type:"system", displayMetadata:sc.displayMetadata};
+    }
+    //is it already an app channel?
+    if (! channel){
+        let ac = app_channels.find(c => {
+            return c.id === id;
+        });
+        if (ac) {
+            channel = {id:id, type:"app"};
+        }
+    } 
+    return channel;
+};
+
 const getOrCreateChannel = async (msg, port) => {
     return new Promise(async (resolve, reject) => {
         const id = msg.data.channelId;
-        let channel = null;
-        //is it a system channel?
-        const sChannels = utils.getSystemChannels();
-        let sc = sChannels.find(c => {
-            return c.id === id;
-        });
-
-        if (sc){
-            channel = {id:id, type:"system", displayMetadata:sc.displayMetadata};
+        //reject with error is reserved 'default' term
+        if (id === "default"){
+            reject(utils.ChannelError.CreationFailed);
         }
-        //is it already an app channel?
-        if (! channel){
-            let ac = app_channels.find(c => {
-                return c.id === id;
-            });
-            if (ac) {
+        else {
+            let channel = getChannelMeta(id);
+        
+            //if not found... create as an app channel
+            if (! channel){
                 channel = {id:id, type:"app"};
+                //add an entry for the context listeners
+                contextListeners[id] = {};
+                contexts[id] = [];
+                app_channels.push(channel);
             }
+            resolve(channel);
         }
-        //if not found... create as an app channel
-        if (! channel){
-            channel = {id:id, type:"app"};
-            //add an entry for the context listeners
-            contextListeners[id] = {};
-            contexts[id] = [];
-            app_channels.push(channel);
-        }
-        resolve(channel);
+    });
+};
+
+const getCurrentChannel = async (msg, port) => {
+    return new Promise(async (resolve, reject) => {
+        const c = utils.getConnected(utils.id(port)                               );
+        //get the  channel
+        let chan = c.channel ? getChannelMeta(c.channel) : null;
+        resolve(chan);
+    });
+};
+
+const leaveCurrentChannel = async (msg, port) => {
+    return new Promise(async (resolve, reject) => {
+        //'default' means we have left all channels
+        joinPortToChannel("default", port);
+        resolve(true);
     });
 };
 
@@ -849,5 +884,7 @@ export default{
     getCurrentContext,
     getSystemChannels,
     getOrCreateChannel,
-    applyPendingChannel
+    applyPendingChannel,
+    getCurrentChannel,
+    leaveCurrentChannel
 };
