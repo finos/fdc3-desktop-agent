@@ -34,7 +34,8 @@ chrome.runtime.onConnect.addListener( async function(port) {
     //let dMatch = [];
     //look origin up in directory...
     try {
-        let _r = await fetch(`${utils.directoryUrl}/apps/search?origin=${app_url.origin}`);
+        const directoryUrl = await utils.getDirectoryUrl();
+        let _r = await fetch(`${directoryUrl}/apps/search?origin=${app_url.origin}`);
         let data = await  _r.json();
         //see if there was an exact match on origin
         //if not (either nothing or ambiguous), then let's treat this as dynamic - i.e. no directory match

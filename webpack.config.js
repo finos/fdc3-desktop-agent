@@ -6,7 +6,8 @@ module.exports = {
       background: './src/background.js',
       content: './src/content.js',
       api: './src/api.js',
-      popup: './src/popup.js'
+      popup: './src/popup.js',
+      options: './src/options.js'
   },
   output: {
     filename: '[name].js',
