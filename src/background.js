@@ -16,7 +16,7 @@ listeners.initContextChannels(utils.getSystemChannels());
 /*
     When an app (i.e. a new tab) connects to the FDC3 service:
         - determine if it has a corresponding entry in the app directory
-            - if it is in appD, fetch it's appD entry plus manifest
+        - if it is in appD, fetch it's appD entry - since we are only dealing with webapps, we don't need another manifest to launch
         - add the tab reference plus any appD data to the "connected" dictionary
         - add event listeners for the app
         - send environment data to the app (directory data, channels, etc)
@@ -43,20 +43,21 @@ chrome.runtime.onConnect.addListener( async function(port) {
         if (data.length === 1){
             entry = data[0];
     
-            //if there is an exact match - we're going to try fetch the manifest   
-            if (entry.manifest){
-                //fetch and bundle environmnet data for the app: app manifest, etc
-                let mR = await fetch(entry.manifest);
-                if (mR){
-                    let mD = await mR.json();
-                    if (mD){
-                        entry.manifestContent = mD;
-                        envD.directory = entry;
-                        utils.setConnected(app_id,{port:port, directoryData:entry});
-                        port.postMessage({topic:"environmentData", 
-                        data:envD});
-                    }
+            //if the app has actions defined in the appD, look those up (this is an extension of appD implemented by appd.kolbito.com) 
+            //actions automate wiring context and intent handlers for apps with gettable end-points
+            if (entry.hasActions){
+                console.log("hasActions");
+                let actionsR = await fetch(`${directoryUrl}/apps/${entry.name}/actions`);
+                
+                let actions = await actionsR.json();
+                if (actions){
+                    entry.actions = actions;
+                    envD.directory = entry;
+                    utils.setConnected(app_id,{port:port, directoryData:entry});
+                    port.postMessage({topic:"environmentData", 
+                    data:envD});
                 }
+                
             }
             else {
            
