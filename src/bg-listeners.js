@@ -552,7 +552,21 @@ const resolveIntent = async (msg, port) => {
             
         }
         else if (sType === "directory"){
-            let mR = await fetch(msg.selected.details.directoryData.manifest);
+            let start_url = msg.selected.details.directoryData.start_url;
+            let appName = msg.selected.details.directoryData.name;
+            let pending = true;
+            //are there actions defined?
+            console.log("hasActions",msg.selected.details.directoryData);
+            if (msg.selected.details.directoryData.hasActions){
+                const directoryUrl = await utils.getDirectoryUrl();
+                const rHeaders = new Headers();
+                rHeaders.append('Content-Type', 'application/json');
+                const body = {"intent":msg.intent,"context":msg.context};
+                const templateR = await fetch(`${directoryUrl}/apps/${appName}/action`,{headers:rHeaders,method:"POST",body:JSON.stringify(body)});
+                start_url = await templateR.text();
+                pending = false;
+            }
+            /*let mR = await fetch(msg.selected.details.directoryData.manifest);
             let mD = await mR.json();
                     let start_url = mD.start_url;
                     if (mD.intents){
@@ -591,11 +605,13 @@ const resolveIntent = async (msg, port) => {
                         });
                     
                         start_url = template;
-                    }
+                    }*/
 
                     chrome.tabs.create({url:start_url},tab =>{
                         //set pending intent for the tab...
-                        setPendingIntent(tab.id, msg.intent, msg.context);
+                        if (pending){
+                            setPendingIntent(tab.id, msg.intent, msg.context);
+                        }
                         let id = utils.id(port,tab);
                         resolve({result:true, tab:tab.id, source:id, version:"1.0"});
                     });
