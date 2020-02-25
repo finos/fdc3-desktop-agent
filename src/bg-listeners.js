@@ -563,62 +563,26 @@ const resolveIntent = async (msg, port) => {
                 rHeaders.append('Content-Type', 'application/json');
                 const body = {"intent":msg.intent,"context":msg.context};
                 const templateR = await fetch(`${directoryUrl}/apps/${appName}/action`,{headers:rHeaders,method:"POST",body:JSON.stringify(body)});
-                start_url = await templateR.text();
-                pending = false;
+                const action_url = await templateR.text();
+                //if we get a valid action url back, set that as the start and don't post pending data
+                if (action_url){
+                    start_url = action_url;
+                    pending = false;
+                }
             }
-            /*let mR = await fetch(msg.selected.details.directoryData.manifest);
-            let mD = await mR.json();
-                    let start_url = mD.start_url;
-                    if (mD.intents){
-                        //find the matching intent entry
-                        let intentData = mD.intents.find(i => {
-                            if (i.type){
-                               return i.type === msg.context.type && i.intent === msg.intent;
-                            }
-                            else {
-                               return i.intent === msg.intent;
-                            }
-                        });
-                        //set paramters
-                        let ctx = msg.context;
-                        let params = {};
-                        Object.keys(mD.params).forEach(key =>{ 
-                            let param = mD.params[key];
-                            if (ctx.type === param.type){
-                                if (param.key){
-                                    params[key] = ctx[param.key];
-                                }
-                                else if (param.id){
-                                    params[key]  = ctx.id[param.id]; 
-                                }
-                            }
-                        });
-                        //generate the url
-                        let template = mD.templates[intentData.template];
-                        Object.keys(params).forEach(key => {
-                            let sub = "${" + key + "}";
-                            let val = params[key];
-                            while (template.indexOf(sub) > -1){
-                                template = template.replace(sub,val);
-                            }
-                      
-                        });
-                    
-                        start_url = template;
-                    }*/
-
-                    chrome.tabs.create({url:start_url},tab =>{
-                        //set pending intent for the tab...
-                        if (pending){
-                            setPendingIntent(tab.id, msg.intent, msg.context);
-                        }
-                        let id = utils.id(port,tab);
-                        resolve({result:true, tab:tab.id, source:id, version:"1.0"});
-                    });
-                    //keep array of pending, id by url,  store intent & context, timestamp
-                    //when a new window connects, throw out anything more than 2 minutes old, then match on url
-                    //when a match is found, remove match from the list, send intent w/context, and bring to front
-                    //resolve(true);
+          
+                chrome.tabs.create({url:start_url},tab =>{
+                    //set pending intent for the tab...
+                    if (pending){
+                        setPendingIntent(tab.id, msg.intent, msg.context);
+                    }
+                    let id = utils.id(port,tab);
+                    resolve({result:true, tab:tab.id, source:id, version:"1.0"});
+                });
+                //keep array of pending, id by url,  store intent & context, timestamp
+                //when a new window connects, throw out anything more than 2 minutes old, then match on url
+                //when a match is found, remove match from the list, send intent w/context, and bring to front
+    
         
                 }
             });

@@ -178,14 +178,10 @@ port.onMessage.addListener(async (msg) => {
        if (msg.data && msg.data.context){
         if (_contextHandlers.indexOf(msg.data.context.type) > -1 && contentActions){
        
-           /* template = null;
-          
-            const body = {"context":msg.data.context};
-            const templateR = await fetch(`${directoryUrl}/apps/${contentName}/action`,{method:"POST",body:JSON.stringify(body)});
-            template = await templateR.text();*/
             const ctxUrl = await actionUrl(msg.data);
             //don't reload if they are the same...
-            if (window.location.href !== ctxUrl){
+            //don't redirect if url is empty (i.e. nothing found for the action)
+            if (ctxUrl && window.location.href !== ctxUrl){
                 window.location.href = ctxUrl; 
             }
             //focus the actual tab
@@ -202,13 +198,9 @@ port.onMessage.addListener(async (msg) => {
         //check for handlers at the content script layer (automatic handlers) - if not, dispatch to the API layer...
         if (_intentHandlers.indexOf(msg.data.intent) > -1 && contentActions){
          
-           /* template = null;
-            const body = {"intent":msg.data.intent,"context":msg.data.context};
-            const templateR = await fetch(`${directoryUrl}/apps/${contentName}/action`,{method:"POST",body:JSON.stringify(body)});
-            const template = await templateR.text();*/
             const intUrl = await actionUrl(msg.data);
             //don't reload if they are the same...
-            if (window.location.href !== intUrl){
+            if (intUrl && window.location.href !== intUrl){
                 window.location.href = intUrl; 
             }
             window.focus();
