@@ -147,21 +147,23 @@ port.onMessage.addListener(async (msg) => {
         const mani = msg.data.directory ? msg.data.directory.actions : null;
         //set globals
         contentName = msg.data.directory ? msg.data.directory.name : null;
-        console.log("contentAction", msg.data.directory);
         contentActions = mani;
         //if there is action metadata for the app in the directory - set up intent & context handlers
         if (mani){
+            //generate a guid for the listener
+            //this would normally come from the api layer in the dom...
+            const guid = utils.guid();
             if (mani.intents){
                 //iterate through the intents, and set listeners
                 mani.intents.forEach(intent => {
-                    port.postMessage({topic:"addIntentListener", "data": {intent:intent.intent }}); 
+                    port.postMessage({topic:"addIntentListener", "data": {id: guid, intent:intent.intent }}); 
                     _intentHandlers.push(intent.intent);
                 });
             }
             if (mani.contexts){
                 //iterate through context metadata and set listeners
                 mani.contexts.forEach(context => {
-                    port.postMessage({topic:"addContextListener", "data": {context:context.type}}); 
+                    port.postMessage({topic:"addContextListener", "data": {id: guid, context:context.type}}); 
                     _contextHandlers.push(context.type);
                 });
             
