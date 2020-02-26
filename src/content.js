@@ -169,32 +169,37 @@ port.onMessage.addListener(async (msg) => {
         }
         if (msg.data.currentChannel){
             currentChannel = msg.data.currentChannel;
-            port.postMessage({topic:"joinChannel", "data": {channel:currentChannel}});      
+            //re-join the channel but don't get the current context - since we are reloading or navigating 
+            port.postMessage({topic:"joinChannel", "data": {channel:currentChannel, restoreOnly:true}});      
         }
     }
    else  if (msg.topic === "context"){
        //check for handlers at the content script layer (automatic handlers) - if not, dispatch to the API layer...
-       
+       let contextSent = false;
        if (msg.data && msg.data.context){
-        if (_contextHandlers.indexOf(msg.data.context.type) > -1 && contentActions){
-       
-            const ctxUrl = await actionUrl(msg.data);
-            //don't reload if they are the same...
-            //don't redirect if url is empty (i.e. nothing found for the action)
-            if (ctxUrl && window.location.href !== ctxUrl){
-                window.location.href = ctxUrl; 
+            if (_contextHandlers.indexOf(msg.data.context.type) > -1 && contentActions){
+        
+                const ctxUrl = await actionUrl(msg.data);
+                //don't reload if they are the same...
+                //don't redirect if url is empty (i.e. nothing found for the action)
+                if (ctxUrl && window.location.href !== ctxUrl){
+                    window.location.href = ctxUrl; 
+                    contextSent = true;
+                }
+                //focus the actual tab
+                //window.focus();
             }
-            //focus the actual tab
-            window.focus();
+            if (!contextSent) {   
+                document.dispatchEvent(new CustomEvent("FDC3:context",{
+                    detail:{data:msg.data}
+                }));
+            }
         }
-    }
 
-        document.dispatchEvent(new CustomEvent("FDC3:context",{
-            detail:{data:msg.data}
-        }));
+       
     }
     else if (msg.topic === "intent") {
-        
+        let intentSent = false;
         //check for handlers at the content script layer (automatic handlers) - if not, dispatch to the API layer...
         if (_intentHandlers.indexOf(msg.data.intent) > -1 && contentActions){
          
@@ -202,12 +207,15 @@ port.onMessage.addListener(async (msg) => {
             //don't reload if they are the same...
             if (intUrl && window.location.href !== intUrl){
                 window.location.href = intUrl; 
+                intentSent = true;
             }
-            window.focus();
+           // window.focus();
         }
-        document.dispatchEvent(new CustomEvent("FDC3:intent",{
-            detail:{data:msg.data}
-        })); 
+        if (!intentSent){
+            document.dispatchEvent(new CustomEvent("FDC3:intent",{
+                detail:{data:msg.data}
+            })); 
+        }
     }
     else if (msg.topic === "setCurrentChannel"){
         if (msg.data.channel){

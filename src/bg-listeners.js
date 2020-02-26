@@ -589,7 +589,7 @@ const resolveIntent = async (msg, port) => {
 };
 
 
-const joinPortToChannel = (channel, port) => {
+const joinPortToChannel = (channel, port, restoreOnly) => {
 
     let chan = channel;
     let _id = utils.id(port);
@@ -640,7 +640,7 @@ const joinPortToChannel = (channel, port) => {
             contexts[chan] = [];
         }
         let ctx = contexts[chan][0];
-        if (ctx){
+        if (ctx && !restoreOnly){
             // send to individual listenerIds
             let listenerKeys = Object.keys(contextListeners[chan]);
             let contextSent = false;
@@ -663,7 +663,7 @@ const joinPortToChannel = (channel, port) => {
 
 const joinChannel = (msg, port) => {
     return new Promise((resolve, reject) => {
-        joinPortToChannel(msg.data.channel,port);
+        joinPortToChannel(msg.data.channel,port, msg.data.restoreOnly);
         resolve(true);
     });
 };
