@@ -369,6 +369,7 @@ const raiseIntent = async (msg, port) => {
 
         //add dynamic listeners...
         let intentListeners = getIntentListeners(msg.data.intent);
+        console.log("intentListeners",intentListeners);
         if (intentListeners) {
             let keys = Object.keys(intentListeners);
             keys.forEach(k => {
