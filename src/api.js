@@ -132,8 +132,8 @@ window.fdc3 = {
         wireMethod("broadcast", {context:context}, {void:true});
     },
 
-    raiseIntent:function(intent, context){
-       return wireMethod("raiseIntent",{intent:intent, context:context});
+    raiseIntent:function(intent, context, target){
+       return wireMethod("raiseIntent",{intent:intent, context:context, target: target});
     },
 
    
