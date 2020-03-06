@@ -62,13 +62,28 @@ const setIntentListener = (intent, listenerId, appId) => {
     intentListeners[intent][listenerId] = {appId:appId}; 
 };
 
-const getIntentListeners = (intent) => {
+const getIntentListeners = (intent, target) => {
+    let result = {};
     if (!intent) {
-        return intentListeners;
+        result = intentListeners;
     }
     else {
-        return intentListeners[intent] ? intentListeners[intent] : {};
+        result = intentListeners[intent] ? intentListeners[intent] : {};
     }
+    //if a target is provided, filter by the app name
+    if (target) {
+        const newResult = {};
+        const keys = Object.keys(result);
+        keys.forEach(k => {
+            const entry = utils.getConnected(result[k].appId).directoryData;
+            if (entry && entry.name === target){
+                newResult[k] = result[k];
+            }
+        });
+        result = newResult;
+    }
+    return result;
+
 };
 
 //removes all intent listeners for an endpoiont
@@ -368,7 +383,7 @@ const raiseIntent = async (msg, port) => {
         });
 
         //add dynamic listeners...
-        let intentListeners = getIntentListeners(msg.data.intent);
+        let intentListeners = getIntentListeners(msg.data.intent, msg.data.target);
         console.log("intentListeners",intentListeners);
         if (intentListeners) {
             let keys = Object.keys(intentListeners);
@@ -389,7 +404,7 @@ const raiseIntent = async (msg, port) => {
             ctx = msg.data.context.type;
         }
         const directoryUrl = await utils.getDirectoryUrl();
-        const _r = await fetch(`${directoryUrl}/apps/search?intent=${msg.data.intent}&context=${ctx}`);
+        const _r = await fetch(`${directoryUrl}/apps/search?intent=${msg.data.intent}&context=${ctx}&name=${msg.data.target ? msg.data.target : ""}`);
         if (_r){ 
             let data = null;
             try {
@@ -420,59 +435,36 @@ const raiseIntent = async (msg, port) => {
                     resolve({result:true, source:id, version:"1.0"});
                 } else if (r[0].type === "directory"){
                     let start_url = r[0].details.directoryData.start_url;
-                    let mR = await fetch(r[0].details.directoryData.manifest);
-                    if (mR){
-                        try {
-                            let mD = await mR.json();
-                                //if there is metadata in the manifest that routes to a different URL for the intent, use that
-                                if (mD.intents){
-                                    //find the matching intent entry
-                                    let intentData = mD.intents.find(i => {
-                                        return i.type === msg.data.context.type && i.intent === msg.data.intent;
-                                    });
-                                    //set paramters
-                                    let ctx = msg.data.context;
-                                    let params = {};
-                                    Object.keys(mD.params).forEach(key =>{ 
-                                        let param = mD.params[key];
-                                        if (ctx.type === param.type){
-                                            if (param.key){
-                                                params[key] = ctx[param.key];
-                                            }
-                                            else if (param.id){
-                                                params[key]  = ctx.id[param.id]; 
-                                            }
-                                        }
-                                    });
-                                    //eval the url
-                                    let template = mD.templates[intentData.template];
-                                    Object.keys(params).forEach(key => {
-                                        let sub = "${" + key + "}";
-                                        let val = params[key];
-                                        while (template.indexOf(sub) > -1){
-                                            template = template.replace(sub,val);
-                                        }
-                                    });
-                                
-                                    start_url = template;
-                                }
-                                //let win = window.open(start_url,"_blank");
-                                chrome.tabs.create({url:start_url},tab =>{
-                                    let id = utils.id(port, tab);
-                                    resolve({result:true, source:id, version:"1.0", tab:tab.id});
-                                });
-                                //send the context - if the default start_url was used...
-                                //get the window/tab...
-                               // resolve({result:true});
-                        }
-
-                        catch (err){
-                            console.log("error parsing json", err);
+                    let pending = true;
+                    if (r[0].details.directoryData.hasActions){
+                        const directoryUrl = await utils.getDirectoryUrl();
+                        const rHeaders = new Headers();
+                        rHeaders.append('Content-Type', 'application/json');
+                        const body = {"intent":msg.data.intent,"context":msg.data.context};
+                        const templateR = await fetch(`${directoryUrl}/apps/${r[0].details.directoryData.name}/action`,{headers:rHeaders,method:"POST",body:JSON.stringify(body)});
+                        const action_url = await templateR.text();                     
+                        //if we get a valid action url back, set that as the start and don't post pending data
+                        if (action_url){
+                            start_url = action_url;
+                            pending = false;
                         }
                     }
-                            
                     
+                        //let win = window.open(start_url,"_blank");
+                        chrome.tabs.create({url:start_url},tab =>{
+                            //set pending intent for the tab...
+                            if (pending){
+                                setPendingIntent(tab.id, msg.data.intent, msg.data.context);
+                            }
+                            let id = utils.id(port, tab);
+                            resolve({result:true, source:id, version:"1.0", tab:tab.id});
+                        });
+                        //send the context - if the default start_url was used...
+                        //get the window/tab...
+                        // resolve({result:true});
                 }
+      
+                
             }
             else {
                 //show resolver UI
