@@ -40,46 +40,72 @@ chrome.runtime.onConnect.addListener( async function(port) {
         //see if there was an exact match on origin
         //if not (either nothing or ambiguous), then let's treat this as dynamic - i.e. no directory match
         let entry = null;
-        if (data.length === 1){
-            entry = data[0];
-    
-            //if the app has actions defined in the appD, look those up (this is an extension of appD implemented by appd.kolbito.com) 
-            //actions automate wiring context and intent handlers for apps with gettable end-points
-            if (entry.hasActions){
-                console.log("hasActions");
-                let actionsR = await fetch(`${directoryUrl}/apps/${entry.name}/actions`);
-                
-                let actions = await actionsR.json();
-                if (actions){
-                    entry.actions = actions;
-                    envD.directory = entry;
-                    utils.setConnected(app_id,{port:port, directoryData:entry});
-                    port.postMessage({topic:"environmentData", 
-                    data:envD});
-                }
-                
-            }
-            else {
-           
-                envD.directory = entry;
-                utils.setConnected(app_id,{port:port, directoryData:entry});
-                port.postMessage({topic:"environmentData", data:envD});
-            }        
-            
-        }
-        else {
-            if (data.length === 0){
-                console.log("No match appd entries found");
-            } else {
-                console.log(`Ambiguous match - ${data.length} items found.`);
-            }
-            utils.setConnected(app_id,{port:port, directoryData:null});
+
+        const entryMatch = async (match) =>{
+            if (!match){
+                utils.setConnected(app_id,{port:port, directoryData:null});
             
             port.postMessage({topic:"environmentData", 
                         data:envD});
+            }
+            else {
+                //if the app has actions defined in the appD, look those up (this is an extension of appD implemented by appd.kolbito.com) 
+                //actions automate wiring context and intent handlers for apps with gettable end-points
+                if (match.hasActions){
+                    console.log("hasActions");
+                    let actionsR = await fetch(`${directoryUrl}/apps/${match.name}/actions`);
+                    
+                    let actions = await actionsR.json();
+                    if (actions){
+                        match.actions = actions;
+                        envD.directory = match;
+                        utils.setConnected(app_id,{port:port, directoryData:match});
+                        port.postMessage({topic:"environmentData", 
+                        data:envD});
+                    }
+                    
+                }
+                else {
+            
+                    envD.directory = match;
+                    utils.setConnected(app_id,{port:port, directoryData:match});
+                    port.postMessage({topic:"environmentData", data:envD});
+                }  
+            }
+        };
 
+        if (data.length === 1){
+            entry = data[0];       
         }
-
+        else {
+            if (data.length === 0){
+                console.log("No matching appd entries found");
+            } else {
+                console.log(`Ambiguous match - ${data.length} items found.`);
+                const pathMatch = data.filter(d => {
+                        const matchUrl = new URL(d.start_url);
+                        return app_url.pathname === matchUrl.pathname;
+                });
+                if (pathMatch.length === 1){
+                    entry = pathMatch[0];
+                }
+                else if (pathMatch.length > 1) {
+                    //try matching on urls
+                    const urlMatch = pathMatch.filter(d => {
+                        return  d.start_url === app_url.href;
+                    });
+                    if (urlMatch.length === 1){
+                        entry = urlMatch[0];
+                    }
+                    else {
+                        console.log("No matching appd entries found");
+                    }
+                }
+              
+            }
+            
+        }
+        entryMatch(entry);
         listeners.applyPendingChannel(port);
     
     }
