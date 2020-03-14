@@ -90,7 +90,8 @@ class Channel {
 
 const wireMethod = (method, detail, config) => {
     const ts = Date.now();
-    const eventId = `${method}_${ts}`;
+    const _guid = guid();
+    const eventId = `${method}_${_guid}`;
     detail.eventId = eventId;
     detail.ts = ts;
     if (config && config.void){      
@@ -100,6 +101,7 @@ const wireMethod = (method, detail, config) => {
         return new Promise((resolve, reject) => {
            
             document.addEventListener(`FDC3:return_${eventId}`,(evt)=>{
+                console.log("api return", evt.detail);
                 if (evt.detail){
                     let r = evt.detail
                     if (config && config.resultHandler){
