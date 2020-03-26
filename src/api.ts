@@ -9,13 +9,6 @@ import { IntentResolution } from './types/fdc3/IntentResolution';
 import {AppIntent} from './types/fdc3/AppIntent';
 import {FDC3Event, fdc3Event, FDC3EventDetail, FDC3EventEnum} from './types/FDC3Event';
 
-//import {FDC3Event} from './types/FDC3Event';
-//import {fdc3Event} from './Event';
-//import {FDC3EventDetail} from './types/FDC3EventDetail';
-//import {FDC3EventEnum} from './types/FDC3EventEnum';
-//import {FDC3EventEnum} from './types/FDC3Event';
-
-
 
 /**
  * This file is injected into each Chrome tab by the Content script to make the FDC3 API available as a global
@@ -148,17 +141,17 @@ const wireMethod = (method :string, detail : FDC3EventDetail, config? : any) : P
         return new Promise((resolve, reject) => {
            
             document.addEventListener(`FDC3:return_${eventId}`,(event : FDC3Event)=>{
-                
-                if (event.detail){
+                console.log("api return",event);
+               // if (event.detail){
                     let r = event.detail
                     if (config && config.resultHandler){
                         r = config.resultHandler.call(this,r);
                     }
                     resolve(r);
-                }
-                else {
-                    reject(event.detail);
-                }           
+                //}
+               // else {
+               //     reject(event.detail);
+               // }           
             },{once:true});
             
             

@@ -9,6 +9,7 @@ import channels from "./system-channels";
 import utils from "./utils";
 
 
+
 //establish comms with the background script 
 let port = chrome.runtime.connect({name: "fdc3"});
 
@@ -76,6 +77,7 @@ const wireTopic = (topic, config) => {
         //get eventId and timestamp from the event 
         if (! isVoid){
             let eventId = e.detail.eventId;
+            
             returnListeners[eventId] = {
                 ts:e.ts,
                 listener:function(msg, port){

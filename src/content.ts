@@ -7,7 +7,7 @@
  */
 import channels from "./system-channels";
 import utils from "./utils";
-import {Listener as fdc3Listener} from './types/fdc3/Listener';
+import {Listener as fdc3Listener, Listener} from './types/fdc3/Listener';
 import {fdc3Event} from './types/FDC3Event';
 import {FDC3Event} from './types/FDC3Event';
 import {FDC3Message} from './types/FDC3Message';
@@ -41,7 +41,7 @@ const eventQ : Array<FDC3Message> = [];
  * handlers will be routinely cleaned up by finding all events that have expired (check timestamp) and rejecting those items
  */
 //collection of listeners for api calls coming back from the background script
-const returnListeners : Map<string,any> = new Map();
+const returnListeners : Map<string, any> = new Map();
 const returnTimeout = (1000 * 60 * 2);
 
  //listen for return messages for api calls
@@ -89,7 +89,7 @@ const wireTopic = (topic : string, config?: any) : void => {
             returnListeners.set(eventId, {
                 ts:e.ts,
                 listener:function(msg : FDC3Message, port : chrome.runtime.Port){
-                document.dispatchEvent(fdc3Event(`FDC3:return_${eventId}`, msg.data)); }
+                document.dispatchEvent(fdc3Event(`return_${eventId}`, msg.data)); }
             });
             if (cb){
                 cb.call(this,e);
@@ -338,7 +338,7 @@ let resolver : HTMLElement = null;
                 if (titleNode.textContent.length === 0){
                     titleNode.textContent = title;
                 }
-                if (titleNode.getAttribute("title").length === 0){
+                if (titleNode.getAttribute("title") === null || titleNode.getAttribute("title").length === 0){
                     titleNode.setAttribute("title",(data ? data.start_url : (tab ? tab.title : "Untitled")));
                 }
                 

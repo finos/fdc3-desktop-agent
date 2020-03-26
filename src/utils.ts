@@ -3,11 +3,12 @@
  */
 
 import channels from "./system-channels";
+import {ConnectedApp, Channel} from "./types/FDC3Data";
 
 
-const guid = () => {
-    const gen = (n) => {
-        const rando = () => {
+const guid = () : string => {
+    const gen = (n?:number):string => {
+        const rando = () : string => {
             return Math.floor((1 + Math.random()) * 0x10000)
             .toString(16)
             .substring(1);
@@ -25,7 +26,7 @@ const guid = () => {
     return `${gen(2)}-${gen()}-${gen()}-${gen()}-${gen(3)}`;
     };
 
-const getDirectoryUrl = async()=> {
+const getDirectoryUrl = async() : Promise<string> => {
     return new Promise (async (resolve, reject) => {
     chrome.storage.sync.get(["appd_url"], (items) => {
         const r = (items.appd_url) ? items.appd_url : "https://appd.kolbito.com";
@@ -34,10 +35,6 @@ const getDirectoryUrl = async()=> {
     });
 });
 };
-
-//const directoryUrl = "http://brokenfdc3.com";
-//const directoryUrl = "https://appd.kolbito.com";
-//const directoryUrl = "http://localhost:3000";
 
 /***
  * Error Objects
@@ -62,35 +59,29 @@ const ChannelError = {
   };
 
 //connected end points / apps
-let connected = {};
+const connected : Map<string, ConnectedApp> = new Map();
 
 
-const getSystemChannels = () => {
+const getSystemChannels = () : Array<Channel> => {
     return channels;
 };
 
 /**
  * add a new tab to the collection of tracked tabs
  */
-const setConnected = (id, item) => {
-    console.log(`set connected id=${id} item=${item}`,connected);
-    connected[id] = item;
-    //todo - check item shape
+const setConnected = (item : ConnectedApp) : boolean => {
+    console.log(`set connected id=${item.id} item=${item}`,connected);
+    connected.set(item.id, item);
     return true;
 };
 
 //if id is passed, return that item, if no or false args, return all connected items
-const getConnected = (id) => {
-    if (id){
-        return connected[id];
-    }
-    else {
-        return connected;
-    }
+const getConnected = (id : string) : ConnectedApp => {
+    return connected.get(id);  
 };
 
-const dropConnected = (id)=> {
-    connected[id] = null;
+const dropConnected = (id :string)=> {
+    connected.delete(id);
 };
 
 
@@ -98,9 +89,9 @@ const dropConnected = (id)=> {
  * brings a tab (and window) into focus
  * 
  */
-const bringToFront = (id) => {
+const bringToFront = (id : any) : Promise<chrome.tabs.Tab> => {
     return new Promise((resolve, reject) => {
-        let _tab = null;
+        let _tab : chrome.tabs.Tab = null;
         console.log("bringToFront",id);
         if (id.windowId && id.id){
             _tab = id;
@@ -136,13 +127,14 @@ const bringToFront = (id) => {
  * generate an id from a port object
  * this is the identifier used for connection and channel tracking
  */
-const id = (port, tab) => {
+const id = (port: chrome.runtime.Port, tab? : chrome.tabs.Tab) : string  => {
+    
     if (port.sender){
         const t = tab ? tab : port.sender.tab;
         return `${port.sender.id}${t.id}`;
     }
     else {
-        return false;
+        return null;
     }
 };
 

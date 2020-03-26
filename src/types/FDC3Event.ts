@@ -15,7 +15,7 @@ export class  FDC3Event extends Event {
 
 }
 
-export const fdc3Event = (type:string, detail:FDC3EventDetail) : CustomEvent => {
+export function fdc3Event(type:string, detail:FDC3EventDetail) : CustomEvent {
     return new CustomEvent(`FDC3:${type}`, {detail:detail});
 }
 
@@ -44,9 +44,10 @@ export interface FDC3EventDetail {
 
 /**
  * EventEnum
- * 
+ * enum of all fdc3 event topics that can originate from the API layer 
  */
 export enum FDC3EventEnum  {
+    Broadcast = "broadcast",
     Open = "open",
     RaiseIntent = "raiseIntent",
     AddContextListener = "addContextListener",

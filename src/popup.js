@@ -6,7 +6,7 @@
  */
 
 import "./components/channel-picker";
-import utils from "./utils.js";
+import utils from "./utils";
 import autoComplete from "./components/autoComplete";
 
 new autoComplete({
