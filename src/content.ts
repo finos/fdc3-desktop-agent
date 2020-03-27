@@ -8,7 +8,6 @@
 import channels from "./system-channels";
 import utils from "./utils";
 import {Listener as fdc3Listener, Listener} from './types/fdc3/Listener';
-import {fdc3Event} from './types/FDC3Event';
 import {FDC3Event} from './types/FDC3Event';
 import {FDC3Message} from './types/FDC3Message';
 import {IntentMetadata} from './types/fdc3/IntentMetadata';
@@ -22,8 +21,6 @@ const port = chrome.runtime.connect({name: "fdc3"});
 
 //flag to indicate the background script is ready for fdc3!
 let connected = false;
-
-
 
 //queue of pending events - accumulate until the background is ready
 const eventQ : Array<FDC3Message> = [];
@@ -90,7 +87,7 @@ const wireTopic = (topic : string, config?: any) : void => {
                 returnListeners.set(eventId, {
                     ts:e.ts,
                     listener:function(msg : FDC3Message, port : chrome.runtime.Port){
-                    document.dispatchEvent(fdc3Event(`return_${eventId}`, msg.data)); }
+                    document.dispatchEvent(utils.fdc3Event(`return_${eventId}`, msg.data)); }
                 });
             }
             if (cb){

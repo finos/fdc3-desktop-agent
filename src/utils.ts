@@ -4,7 +4,7 @@
 
 import channels from "./system-channels";
 import {ConnectedApp, Channel} from "./types/FDC3Data";
-
+import {FDC3EventDetail} from "./types/FDC3Event";
 
 const guid = () : string => {
     const gen = (n?:number):string => {
@@ -84,6 +84,14 @@ const dropConnected = (id :string)=> {
     connected.delete(id);
 };
 
+/**
+ * generates a CustomEvent for FDC3 eventing in the DOM
+ * @param type  
+ * @param detail  
+ */
+const fdc3Event = (type:string, detail:FDC3EventDetail) : CustomEvent => {
+    return new CustomEvent(`FDC3:${type}`, {detail:detail});
+}
 
 /**
  * brings a tab (and window) into focus
@@ -149,5 +157,6 @@ export default{
     ResolveError,
     ChannelError,
     id,
-    guid
+    guid,
+    fdc3Event
 };

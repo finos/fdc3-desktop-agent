@@ -15,9 +15,6 @@ export class  FDC3Event extends Event {
 
 }
 
-export function fdc3Event(type:string, detail:FDC3EventDetail) : CustomEvent {
-    return new CustomEvent(`FDC3:${type}`, {detail:detail});
-}
 
 /**
  * Event Detail structure

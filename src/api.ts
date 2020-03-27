@@ -1,4 +1,5 @@
 
+import utils from './utils';
 import {DesktopAgent as fdc3DesktopAgent} from './types/fdc3/DesktopAgent';
 import {Listener as fdc3Listener} from './types/fdc3/Listener';
 import {Channel as fdc3Channel} from './types/fdc3/Channel';
@@ -7,7 +8,7 @@ import {DisplayMetadata} from './types/fdc3/DisplayMetadata';
 import {ContextHandler} from './types/fdc3/ContextHandler';
 import { IntentResolution } from './types/fdc3/IntentResolution';
 import {AppIntent} from './types/fdc3/AppIntent';
-import {FDC3Event, fdc3Event, FDC3EventDetail, FDC3EventEnum} from './types/FDC3Event';
+import {FDC3Event, FDC3EventDetail, FDC3EventEnum} from './types/FDC3Event';
 
 
 /**
@@ -15,29 +16,6 @@ import {FDC3Event, fdc3Event, FDC3EventDetail, FDC3EventEnum} from './types/FDC3
  */
 
 function _doFdc3(){
-
-
-
-
-const guid = () : string => {
-    const gen = (n? : number) : string => {
-        const rando = () : string => {
-            return Math.floor((1 + Math.random()) * 0x10000)
-            .toString(16)
-            .substring(1);
-        };
-        let r :string= "";
-        let i : number = 0;
-        n = n ? n : 1;
-        while (i < n){
-            r += rando();
-            i++;
-        }
-        return r;
-    }
-    
-    return `${gen(2)}-${gen()}-${gen()}-${gen()}-${gen(3)}`;
-    };
 
 
 /**
@@ -63,12 +41,12 @@ class Listener implements fdc3Listener{
         if (this.type === "context"){
             _contextListeners.delete(this.id);
             //notify the background script
-            document.dispatchEvent(fdc3Event(FDC3EventEnum.DropContextListener,{id:this.id}));
+            document.dispatchEvent(utils.fdc3Event(FDC3EventEnum.DropContextListener,{id:this.id}));
         }
         else if (this.type === "intent"){
             _intentListeners.get(this.intent).delete(this.id);
             //notify the background script
-            document.dispatchEvent(fdc3Event(FDC3EventEnum.DropIntentListener,{id:this.id, intent:this.intent}));
+            document.dispatchEvent(utils.fdc3Event(FDC3EventEnum.DropIntentListener,{id:this.id, intent:this.intent}));
         }
 
     }
@@ -114,9 +92,9 @@ class Channel implements fdc3Channel {
     addContextListener(contextType : any, handler? : any){
         const thisListener : ContextHandler = arguments.length === 2 ? handler : arguments[0];
         const thisContextType : string = arguments.length === 2 ? contextType : null;
-        const listenerId : string = guid();
+        const listenerId : string = utils.guid();
         _contextListeners.set(listenerId, new ListenerItem(listenerId, thisListener,thisContextType));
-        document.dispatchEvent(fdc3Event(FDC3EventEnum.AddContextListener, {
+        document.dispatchEvent(utils.fdc3Event(FDC3EventEnum.AddContextListener, {
                 id:listenerId, 
                 channel:this.id,
                 contextType:thisContextType
@@ -130,12 +108,12 @@ class Channel implements fdc3Channel {
 
 const wireMethod = (method :string, detail : FDC3EventDetail, config? : any) : Promise <any | null> => {
     const ts : number = Date.now();
-    const _guid : string = guid();
+    const _guid : string = utils.guid();
     const eventId : string = `${method}_${_guid}`;
     detail.eventId = eventId;
     detail.ts = ts;
     if (config && config.void){      
-        document.dispatchEvent(fdc3Event(method,detail));
+        document.dispatchEvent(utils.fdc3Event(method,detail));
     }
     else {
         return new Promise((resolve, reject) => {
@@ -155,7 +133,7 @@ const wireMethod = (method :string, detail : FDC3EventDetail, config? : any) : P
             },{once:true});
             
             
-            document.dispatchEvent(fdc3Event(method,detail));
+            document.dispatchEvent(utils.fdc3Event(method,detail));
 
         });
     }
@@ -187,9 +165,9 @@ class DesktopAgent implements fdc3DesktopAgent {
     addContextListener(contextType:any, handler? : any) {
         const thisListener : ContextHandler = arguments.length === 2 ? arguments[1] : arguments[0];
         const thisContextType : string = arguments.length === 2 ? arguments[0] : null;
-        const listenerId : string = guid();
+        const listenerId : string = utils.guid();
         _contextListeners.set(listenerId, new ListenerItem(listenerId, thisListener, thisContextType));
-        document.dispatchEvent(fdc3Event(FDC3EventEnum.AddContextListener, {
+        document.dispatchEvent(utils.fdc3Event(FDC3EventEnum.AddContextListener, {
                 id:listenerId,
                 contextType:thisContextType
         }));
@@ -197,12 +175,12 @@ class DesktopAgent implements fdc3DesktopAgent {
     }
 
     addIntentListener(intent:string, listener:ContextHandler) {
-        const listenerId : string = guid();
+        const listenerId : string = utils.guid();
         if (!_intentListeners.has(intent)){
             _intentListeners.set(intent, new Map());
         }
         _intentListeners.get(intent).set(listenerId, new ListenerItem(listenerId,listener));
-        document.dispatchEvent(fdc3Event(FDC3EventEnum.AddIntentListener, {
+        document.dispatchEvent(utils.fdc3Event(FDC3EventEnum.AddIntentListener, {
                 id:listenerId,
                 intent:intent
         }));
@@ -239,7 +217,7 @@ class DesktopAgent implements fdc3DesktopAgent {
             document.addEventListener("FDC3:confirmJoin",(event : FDC3Event) =>{
                 resolve();
             }, {once : true});
-            document.dispatchEvent(fdc3Event(FDC3EventEnum.JoinChannel, {channel:channel }));
+            document.dispatchEvent(utils.fdc3Event(FDC3EventEnum.JoinChannel, {channel:channel }));
         });
     }
 
