@@ -1,7 +1,10 @@
 /**
  * metadata for the system channels 
  */
-export default[
+
+import {Channel} from './types/FDC3Data';
+
+const channels : Array<Channel> = [
     {"id":"red","type":"system","displayMetadata":
         {"color":"#da2d2d",
         "color2":"#9d0b0b",
@@ -29,4 +32,6 @@ export default[
     {"id":"global","type":"system","displayMetadata":
         {"name":"Global"}}
 ];
+
+export default channels;
 
