@@ -120,7 +120,7 @@ const getIntentListeners = (intent : string, target? : string) : Map<string,List
     const result : Map<string, Listener> = intentListeners.get(intent);
  
     //if a target is provided, filter by the app name
-    if (target) {
+    if (target && result) {
         result.forEach((listener, key) => {
             const entry = utils.getConnected(listener.appId).directoryData;
             if (entry && entry.name !== target){
@@ -223,9 +223,9 @@ const getCurrentContext = (msg : FDC3Message, port : chrome.runtime.Port) : Prom
 
 const addContextListener = (msg : FDC3Message, port : chrome.runtime.Port) => {
     return new Promise((resolve, reject) => {
-        let c = utils.getConnected(utils.id(port));
+        const c = utils.getConnected(utils.id(port));
         //use channel from the event message first, or use the channel of the sending app, or use default
-        let channel = msg.data.channel ? msg.data.channel : (c && c.channel) ? c.channel : "default";
+        const channel = msg.data !== null && msg.data.channel ? msg.data.channel : (c && c.channel) ? c.channel : "default";
 
         //distinguish "channel listeners" - set on the Channel directly and not movable with channel membership and not subject to default rules
         contextListeners.get(channel).set(msg.data.id,  {
@@ -233,7 +233,6 @@ const addContextListener = (msg : FDC3Message, port : chrome.runtime.Port) => {
             contextType:msg.data.contextType, 
             isChannel:(msg.data.channel != null)});
 
-        console.log("checking pending contexts",pending_contexts);
         if (pending_contexts.length > 0){
             //first cleanup anything old
             let n = Date.now();
@@ -440,7 +439,7 @@ const raiseIntent = async (msg: FDC3Message, port : chrome.runtime.Port) : Promi
             }
         });
 
-        //add dynamic listeners...
+        //add dynamic listeners from connected tabs
         let intentListeners = getIntentListeners(msg.data.intent, msg.data.target);
         console.log("intentListeners",intentListeners);
         if (intentListeners) {
@@ -474,7 +473,6 @@ const raiseIntent = async (msg: FDC3Message, port : chrome.runtime.Port) : Promi
             if (data){
                 data.forEach((entry : DirectoryApp) => {
                     r.push({type:"directory", details:{directoryData:entry}});
-
                 });
             }
         }    

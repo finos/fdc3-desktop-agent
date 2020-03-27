@@ -84,13 +84,15 @@ const wireTopic = (topic : string, config?: any) : void => {
 
         //get eventId and timestamp from the event 
         if (! isVoid){
-            const eventId : string = e.detail.eventId;
+            const eventId : string = e.detail !== null ? e.detail.eventId : null;
             
-            returnListeners.set(eventId, {
-                ts:e.ts,
-                listener:function(msg : FDC3Message, port : chrome.runtime.Port){
-                document.dispatchEvent(fdc3Event(`return_${eventId}`, msg.data)); }
-            });
+            if (eventId !== null){
+                returnListeners.set(eventId, {
+                    ts:e.ts,
+                    listener:function(msg : FDC3Message, port : chrome.runtime.Port){
+                    document.dispatchEvent(fdc3Event(`return_${eventId}`, msg.data)); }
+                });
+            }
             if (cb){
                 cb.call(this,e);
             }

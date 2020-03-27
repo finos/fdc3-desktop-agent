@@ -26,9 +26,9 @@ export interface FDC3EventDetail {
     /**
      * 
      */
+    id ?: string; //resolve with listenerId
     ts? : number;
     listenerId ? : string;
-    id?: string; //resolve with listenerId
     eventId?: string; //resolve with listenerId & eventId
     intent? : string;
     channel?:string;

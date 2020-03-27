@@ -111,8 +111,8 @@ class Channel implements fdc3Channel {
    
     addContextListener(handler: ContextHandler ): Listener;
     addContextListener(contextType: string, handler: ContextHandler): Listener;
-    addContextListener(contextType : any, listener? : any){
-        const thisListener : ContextHandler = arguments.length === 2 ? listener : arguments[0];
+    addContextListener(contextType : any, handler? : any){
+        const thisListener : ContextHandler = arguments.length === 2 ? handler : arguments[0];
         const thisContextType : string = arguments.length === 2 ? contextType : null;
         const listenerId : string = guid();
         _contextListeners.set(listenerId, new ListenerItem(listenerId, thisListener,thisContextType));
@@ -184,14 +184,14 @@ class DesktopAgent implements fdc3DesktopAgent {
 
     addContextListener(handler: ContextHandler ): Listener;
     addContextListener(contextType: string, handler: ContextHandler): Listener;
-    addContextListener(contextType:any, listener? : any) {
-        const thisListener : ContextHandler = arguments.length === 2 ? listener : arguments[0];
-        const thisContextType : string = arguments.length === 2 ? contextType : null;
+    addContextListener(contextType:any, handler? : any) {
+        const thisListener : ContextHandler = arguments.length === 2 ? arguments[1] : arguments[0];
+        const thisContextType : string = arguments.length === 2 ? arguments[0] : null;
         const listenerId : string = guid();
         _contextListeners.set(listenerId, new ListenerItem(listenerId, thisListener, thisContextType));
         document.dispatchEvent(fdc3Event(FDC3EventEnum.AddContextListener, {
                 id:listenerId,
-                contextType:contextType
+                contextType:thisContextType
         }));
         return new Listener("context",listenerId);
     }
