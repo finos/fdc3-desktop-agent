@@ -121,8 +121,8 @@ const wireMethod = (method :string, detail : FDC3EventDetail, config? : any) : P
             document.addEventListener(`FDC3:return_${eventId}`,(event : FDC3Event)=>{
                 console.log("api return",event);
                // if (event.detail){
-                    let r = event.detail
-                    if (config && config.resultHandler){
+                    let r = event.detail;
+                    if (r !== null && config && config.resultHandler){
                         r = config.resultHandler.call(this,r);
                     }
                     resolve(r);

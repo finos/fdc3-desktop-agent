@@ -313,26 +313,29 @@ const setPendingContext =function(tabId : number, context: Context){
     pending_channels.push(new Pending(tabId, {channel:channel}));
   };
 
-  const applyPendingChannel = function(port : chrome.runtime.Port){
+  const applyPendingChannel = async function(port : chrome.runtime.Port) : Promise<void>{
+    return new Promise((resolve, reject) => {
+    const thisPort : chrome.runtime.Port = port;
 
     if (pending_channels.length > 0){
         //first cleanup anything old
-        let n = Date.now();
+        const n = Date.now();
         pending_channels = pending_channels.filter(i => {
             return n - i.ts < pendingTimeout;
         });
         //next, match on tabId and intent
-        pending_channels.forEach((pChannel, index) => {
+        pending_channels.forEach(async (pChannel, index) => {
            
-            let portTabId = port.sender.tab.id;
+            const portTabId = thisPort.sender.tab.id;
             if (pChannel.tabId === portTabId){
                 console.log("applying pending channel", pChannel);  
                 //send a message back to the content script - updating its channel...
-                port.postMessage({topic:"setCurrentChannel",data:{channel:pChannel.channel}});  
-                joinPortToChannel(pChannel.channel,port);
+                thisPort.postMessage({topic:"setCurrentChannel",data:{channel:pChannel.channel}});  
+                await joinPortToChannel(pChannel.channel,thisPort);
                 //utils.bringToFront(port.sender.tab); 
                 //remove the applied context
                 pending_channels.splice(index,1);
+                resolve();
             }
         });
 
@@ -340,16 +343,19 @@ const setPendingContext =function(tabId : number, context: Context){
     }
     else {
         //is the 'global' channel set as default?
-        chrome.storage.sync.get(["default_global"], (items) => {
+        chrome.storage.sync.get(["default_global"], async (items) => {
             if (items.default_global) {
                 console.log("global channel is set to default");
                 //send a message back to the content script - updating its channel...
                 port.postMessage({topic:"setCurrentChannel",data:{channel:"global"}});  
-                joinPortToChannel("global",port);
+                await joinPortToChannel("global",thisPort);
+                resolve();
+                
             }
                 
         });
     }
+    });
 };
 
 
@@ -637,8 +643,8 @@ const resolveIntent = async (msg : FDC3Message, port : chrome.runtime.Port) : Pr
 };
 
 
-const joinPortToChannel = (channel : string, port : chrome.runtime.Port, restoreOnly? : boolean) => {
-
+const joinPortToChannel = (channel : string, port : chrome.runtime.Port, restoreOnly? : boolean) : Promise<void> => {
+    return new Promise((resolve, reject) => {
     let chan = channel;
     let _id = utils.id(port);
     let c = utils.getConnected(_id);
@@ -673,15 +679,17 @@ const joinPortToChannel = (channel : string, port : chrome.runtime.Port, restore
         //update the UI for the color picker in the extension UI
         //if the joined channel is the special "default" identiefier or NOT a system channel, then skip this part
         const channels : Array<Channel> = utils.getSystemChannels();
-        const selectedChannel = channels.find(_chan => {return _chan.id === chan;});
+        const selectedChannel = channels.find((_chan :Channel) => {return _chan.id === chan;});
         if (chan === "default" || typeof(selectedChannel) !== "undefined"){
             //set the badge state
-            let bText = (chan === "default" || chan === "global") ? "" : "+";
+            const bText = (chan === "default") ? "" : (chan === "global") ? "G" : "+";
             chrome.browserAction.setBadgeText({text:bText,tabId:port.sender.tab.id});    
         
-            let color = selectedChannel && selectedChannel.displayMetadata && selectedChannel.displayMetadata.color ? selectedChannel.displayMetadata.color : "";
+            const color = selectedChannel && selectedChannel.displayMetadata && selectedChannel.displayMetadata.color ? selectedChannel.displayMetadata.color : null;
+            if (color !== null){
             chrome.browserAction.setBadgeBackgroundColor({color:color,
                 tabId:port.sender.tab.id});
+            }
         }
         //push current channel context 
         //if there is a context...
@@ -708,13 +716,16 @@ const joinPortToChannel = (channel : string, port : chrome.runtime.Port, restore
                 setPendingContext(port.sender.tab.id,contexts.get(chan)[0]);
             }
         }
+        resolve();
         //port.postMessage({topic:"context", data:{context:contexts[chan][0]}});
     }
+    });
 };
 
-const joinChannel = (msg : FDC3Message, port : chrome.runtime.Port) => {
-    return new Promise((resolve, reject) => {
-        joinPortToChannel(msg.data.channel,port, msg.data.restoreOnly);
+const joinChannel = async (msg : FDC3Message, port : chrome.runtime.Port) => {
+    console.log("joinChannel", msg);
+    return new Promise(async (resolve, reject) => {
+        await joinPortToChannel(msg.data.channel,port, msg.data.restoreOnly);
         resolve(true);
     });
 };
@@ -726,8 +737,8 @@ const getSystemChannels = async (msg : FDC3Message, port : chrome.runtime.Port) 
 };
 
 //generate / get full channel object from an id - returns null if channel id is not a system channel or a registered app channel
-const getChannelMeta = (id : string) => {
-    let channel = null;
+const getChannelMeta = (id : string) : Channel => {
+    let channel : Channel = null;
     //is it a system channel?
     const sChannels : Array<Channel> = utils.getSystemChannels();
     let sc = sChannels.find(c => {

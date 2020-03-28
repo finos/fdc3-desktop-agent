@@ -179,6 +179,7 @@ port.onMessage.addListener(async (msg) => {
             }
         }
         if (msg.data.currentChannel){
+            console.log("content - joinChannel", msg.data.currentChannel);
             currentChannel = msg.data.currentChannel;
             //re-join the channel but don't get the current context - since we are reloading or navigating 
             port.postMessage({topic:"joinChannel", "data": {channel:currentChannel, restoreOnly:true}});      

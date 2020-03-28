@@ -30,93 +30,74 @@ chrome.runtime.onConnect.addListener( async function(port : chrome.runtime.Port)
     const app_url : URL = new URL(port.sender.url);
     const app_id = utils.id(port);
     //envData is the known info we're going to pass back to the app post-connect
-    const envD : EnvironmentData = new EnvironmentData(port.sender.tab.id, listeners.getTabChannel(port.sender.tab.id));
+    //const envD : EnvironmentData = new EnvironmentData(port.sender.tab.id, listeners.getTabChannel(port.sender.tab.id));
 
     //look origin up in directory...
-    try {
-        const directoryUrl : string = await utils.getDirectoryUrl();
-        const lookupResponse = await fetch(`${directoryUrl}/apps/search?origin=${app_url.origin}`);
-        const lookupData : Array<DirectoryApp> = await lookupResponse.json();
-        //see if there was an exact match on origin
-        //if not (either nothing or ambiguous), then let's treat this as dynamic - i.e. no directory match
-        let entry = null;
+ 
+    const directoryUrl : string = await utils.getDirectoryUrl();
+    const lookupResponse = await fetch(`${directoryUrl}/apps/search?origin=${app_url.origin}`);
+    const lookupData : Array<DirectoryApp> = await lookupResponse.json();
+    //see if there was an exact match on origin
+    //if not (either nothing or ambiguous), then let's treat this as dynamic - i.e. no directory match
+    let match : DirectoryApp = null;
         
-        const entryMatch = async (match : DirectoryApp) =>{
-            console.log("entryMatch", match);
-            if (!match){
-                utils.setConnected({id: app_id, port:port, directoryData:null});
-            
-                port.postMessage({topic:"environmentData", 
-                        data:envD});
+
+    if (lookupData.length === 1){
+        match = lookupData[0];       
+    }
+    else {
+        if (lookupData.length === 0){
+            console.log("No matching appd entries found");
+        } else {
+            console.log(`Ambiguous match - ${lookupData.length} items found.`);
+            const pathMatch = lookupData.filter((d : any) => {
+                    const matchUrl = new URL(d.start_url);
+                    return app_url.pathname === matchUrl.pathname;
+            });
+            if (pathMatch.length === 1){
+                match = pathMatch[0];
             }
-            else {
-                //if the app has actions defined in the appD, look those up (this is an extension of appD implemented by appd.kolbito.com) 
-                //actions automate wiring context and intent handlers for apps with gettable end-points
-                if (match.hasActions){
-                    console.log("hasActions");
-                    let actionsR = await fetch(`${directoryUrl}/apps/${match.name}/actions`);
-                    
-                    let actions = await actionsR.json();
-                    if (actions){
-                        match.actions = actions;
-                        envD.directory = match;
-                        utils.setConnected({id: app_id, port:port, directoryData:match});
-                        port.postMessage({topic:"environmentData", 
-                        data:envD});
-                    }
-                    
+            else if (pathMatch.length > 1) {
+                //try matching on urls
+                const urlMatch = pathMatch.filter(d => {
+                    return  d.start_url === app_url.href;
+                });
+                if (urlMatch.length === 1){
+                    match = urlMatch[0];
                 }
                 else {
-            
-                    envD.directory = match;
-                    utils.setConnected({id: app_id, port:port, directoryData:match});
-                    port.postMessage({topic:"environmentData", data:envD});
-                }  
+                    console.log("No matching appd entries found");
+                }
             }
-        };
+        }
+    }
+        
 
-        if (lookupData.length === 1){
-            entry = lookupData[0];       
-        }
-        else {
-            if (lookupData.length === 0){
-                console.log("No matching appd entries found");
-            } else {
-                console.log(`Ambiguous match - ${lookupData.length} items found.`);
-                const pathMatch = lookupData.filter((d : any) => {
-                        const matchUrl = new URL(d.start_url);
-                        return app_url.pathname === matchUrl.pathname;
-                });
-                if (pathMatch.length === 1){
-                    entry = pathMatch[0];
-                }
-                else if (pathMatch.length > 1) {
-                    //try matching on urls
-                    const urlMatch = pathMatch.filter(d => {
-                        return  d.start_url === app_url.href;
-                    });
-                    if (urlMatch.length === 1){
-                        entry = urlMatch[0];
-                    }
-                    else {
-                        console.log("No matching appd entries found");
-                    }
-                }
-              
-            }
+    if (match !== null && match.hasActions){
             
-        }
-        entryMatch(entry);
-        listeners.applyPendingChannel(port);
+        //if the app has actions defined in the appD, look those up (this is an extension of appD implemented by appd.kolbito.com) 
+        //actions automate wiring context and intent handlers for apps with gettable end-points
+            console.log("hasActions");
+            let actionsR = await fetch(`${directoryUrl}/apps/${match.name}/actions`);
+
+            let actions = await actionsR.json();
+            if (actions){
+                match.actions = actions;
+
+            }
+    }
+        
+    utils.setConnected({id: app_id, port:port, directoryData:match});
+    await listeners.applyPendingChannel(port);
     
+    const envD : EnvironmentData = new EnvironmentData(port.sender.tab.id, listeners.getTabChannel(port.sender.tab.id));
+    if (match !== null){
+        envD.directory = match;
     }
-    catch (e){
-        console.log(`app data not found for origin ${app_url.origin}`);
-        utils.setConnected({id: app_id, port:port, directoryData:null});
-        port.postMessage({topic:"environmentData", 
-                                data:envD});
-                        
-    }
+    
+    
+    port.postMessage({topic:"environmentData", data:envD});
+
     
     port.onDisconnect.addListener(function(){
         console.log("disconnect",port);
