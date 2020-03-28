@@ -349,10 +349,10 @@ const setPendingContext =function(tabId : number, context: Context){
                 //send a message back to the content script - updating its channel...
                 port.postMessage({topic:"setCurrentChannel",data:{channel:"global"}});  
                 await joinPortToChannel("global",thisPort);
-                resolve();
+    
                 
             }
-                
+            resolve();   
         });
     }
     });
