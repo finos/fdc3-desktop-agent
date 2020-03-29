@@ -89,7 +89,7 @@ chrome.runtime.onConnect.addListener( async (port : chrome.runtime.Port) => {
             console.log("No matching appd entries found");
         } else {
             console.log(`Ambiguous match - ${lookupData.length} items found.`);
-            const pathMatch = lookupData.filter(async (d : any) => {
+            const pathMatch = lookupData.filter(async (d : DirectoryApp) => {
                     const matchUrl = new URL(d.start_url);
                     return app_url.pathname === matchUrl.pathname;
             });
