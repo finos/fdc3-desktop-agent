@@ -14,6 +14,42 @@ import {FDC3Message} from './types/FDC3Message';
 
 listeners.initContextChannels(utils.getSystemChannels());
 
+//get list of all apps on start up - use this cache only for checking tabs
+//refresh the list ~ 1/hr
+//add option for manual refresh of the list
+const getApps = async () : Promise<Array<DirectoryApp>> => {
+    return new Promise( async (resolve, reject) =>{
+        let apps : Array<DirectoryApp> = [];
+        //check the cache
+        chrome.storage.sync.get(["apps_list"], async (items) => {
+            let doFetch : boolean = false;
+            if (items.apps_list) {
+                //get the timestamp
+                if (items.apps_list.ts && (Date.now() - items.apps_list.ts > 3600000)){
+                   doFetch = true;
+                }
+            }
+            else {
+                doFetch = true;        
+            }
+            if (doFetch){
+                const directoryUrl = await utils.getDirectoryUrl();
+                const result = await fetch(`${directoryUrl}/apps/`);
+                if (result) {
+                    apps  = await result.json();
+                }
+                chrome.storage.sync.set({"apps_list":{ts:Date.now(), data:apps}});
+                resolve(apps);
+            } else {
+                resolve(items.apps_list.data); 
+            }
+        
+        });
+    });
+};
+
+
+
 
 /*
     When an app (i.e. a new tab) connects to the FDC3 service:
@@ -25,20 +61,23 @@ listeners.initContextChannels(utils.getSystemChannels());
         - for the app, reciept of the environment data will signal that the background script is ready to recieve events from it
 
 */
-chrome.runtime.onConnect.addListener( async function(port : chrome.runtime.Port) {
-    
+chrome.runtime.onConnect.addListener( async (port : chrome.runtime.Port) => {
+    const appsList =  await getApps();
+
     const app_url : URL = new URL(port.sender.url);
     const app_id = utils.id(port);
+    const directoryUrl : string = await utils.getDirectoryUrl();
     //envData is the known info we're going to pass back to the app post-connect
     //const envD : EnvironmentData = new EnvironmentData(port.sender.tab.id, listeners.getTabChannel(port.sender.tab.id));
 
-    //look origin up in directory...
- 
-    const directoryUrl : string = await utils.getDirectoryUrl();
-    const lookupResponse = await fetch(`${directoryUrl}/apps/search?origin=${app_url.origin}`);
-    const lookupData : Array<DirectoryApp> = await lookupResponse.json();
+    //check origin against the stored apps list
+    
     //see if there was an exact match on origin
     //if not (either nothing or ambiguous), then let's treat this as dynamic - i.e. no directory match
+    const lookupData : Array<DirectoryApp> = appsList.filter(async (app: DirectoryApp)=> {
+        const dir_url : URL = new URL(app.start_url);
+        return app_url.origin === dir_url.origin;
+    });
     let match : DirectoryApp = null;
         
 
@@ -50,7 +89,7 @@ chrome.runtime.onConnect.addListener( async function(port : chrome.runtime.Port)
             console.log("No matching appd entries found");
         } else {
             console.log(`Ambiguous match - ${lookupData.length} items found.`);
-            const pathMatch = lookupData.filter((d : any) => {
+            const pathMatch = lookupData.filter(async (d : any) => {
                     const matchUrl = new URL(d.start_url);
                     return app_url.pathname === matchUrl.pathname;
             });

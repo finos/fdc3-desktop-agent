@@ -335,7 +335,7 @@ const setPendingContext =function(tabId : number, context: Context){
                 //utils.bringToFront(port.sender.tab); 
                 //remove the applied context
                 pending_channels.splice(index,1);
-                resolve();
+                resolve();0
             }
         });
 
