@@ -2,10 +2,11 @@ const path = require('path');
 const CopyPlugin = require('copy-webpack-plugin');
 
 module.exports = {
+  mode:"production",
   entry: {
-      background: './src/background.js',
-      content: './src/content.js',
-      api: './src/api.js',
+      background: './src/background.ts',
+      content: './src/content.ts',
+      api: './src/api.ts',
       popup: './src/popup.js',
       options: './src/options.js'
   },
@@ -16,6 +17,11 @@ module.exports = {
   module: {
     rules: [
       {
+        test: /\.ts?$/,
+        use: 'ts-loader',
+        exclude: /node_modules/,
+      },
+      {
         test: /\.(png|jpe?g|gif)$/i,
         loader: 'file-loader',
         options: {
@@ -23,6 +29,9 @@ module.exports = {
         },
       },
     ],
+  },
+  resolve: {
+    extensions: [".ts", ".js" ]
   },
   plugins: [
     new CopyPlugin([

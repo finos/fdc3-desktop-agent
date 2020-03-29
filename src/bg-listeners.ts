@@ -2,95 +2,148 @@
  *  Main handler functions for API logic executed by the background script 
  */
 
-import utils from "./utils";
-import systemChannels from "./system-channels";
+import utils from './utils';
+import systemChannels from './system-channels';
+import {IntentResolution} from './types/fdc3/IntentResolution';
+import {AppIntent} from './types/fdc3/AppIntent';
+import {AppMetadata} from './types/fdc3/AppMetadata';
+import { Context } from "./types/fdc3/Context";
+import { FDC3Message } from "./types/FDC3Message";
+import {DirectoryApp, DirectoryIntent, Channel, FDC3App, FDC3AppDetail} from './types/FDC3Data';
+import { IntentMetadata } from './types/fdc3/IntentMetadata';
+
+/**
+ * reperesents a pending event to be passed to an app once it is loaded
+ */
+class Pending {
+    /**
+     * timestamp
+     */
+    ts : number;
+
+    /**
+     * identifier for pending tab
+     */
+    tabId: number;
+    
+    /**
+     * context object to apply
+     */
+    context? : Context;
+
+    /**
+     * name of intent to apply
+     */
+    intent? : string;
+
+    /**
+     * id of channel to join
+     */
+    channel? : string;
+
+    constructor(tabId: number, init : any){
+        this.ts = Date.now();
+        this.tabId = tabId;
+        this.context = init.context ? init.context : null;
+        this.intent = init.intent ? init.intent : null;
+        this.channel = init.channel ? init.channel : null;
+    }
+}
+
+/**
+ * represents an event listener
+ */
+interface Listener {
+    appId : string;
+    contextType? : string;
+    isChannel?:boolean;
+}
+
 
 //wait 2 minutes for pending intents to connect
-const pendingIntentTimeout = 2 * 60 * 1000;
+const pendingTimeout : number = 2 * 60 * 1000;
 //collection of queued intents to apply to tabs when they connect
-let pending_intents = [];
+let pending_intents : Array<Pending> = [];
 //collection of queud contexts to apply to tabs when they connect
-let pending_contexts = [];
-
+let pending_contexts : Array<Pending> = [];
 //collection of queued channels 
-let pending_channels = [];
+let pending_channels : Array<Pending> = [];
 
-//running contexts 
-let contexts = {default:[]};
-//context listeners
-let contextListeners = {default:{}};
+// map of all running contexts keyed by channel 
+const contexts : Map<string,Array<Context>> = new Map([["default",[]]]);
+
+//map of listeners for each context channel
+const contextListeners : Map<string,Map<string,Listener>> = new Map([["default",new Map()]]);
 //intent listeners (dictionary keyed by intent name)
-let intentListeners = {};
+const intentListeners : Map<string,Map<string,Listener>>  = new Map();
 
-//collection of app channels
-const app_channels = [];
+//collection of app channel ids
+const app_channels : Array<Channel> = [];
 
 //track tab channel membership (apps can disconnect and reconnect, but tabs and channel membership persist)
-let tabChannels = {};
+const tabChannels : Map<number, string> = new Map();
 
-const initContextChannels = (channels) => {
+const initContextChannels = (channels : Array<Channel>) => {
     //initialize the active channels
     //need to map channel membership to tabs, listeners to apps, and contexts to channels
     channels.forEach(chan => {
-        contextListeners[chan.id] = {};
-        contexts[chan.id] = [];});
+        contextListeners.set(chan.id, new Map());
+        contexts.set(chan.id, []);
+    });
 };
 
 /**
  * 
  * drop all of the listeners for an app (when disconnecting)
  */
-const dropContextListeners = (appId) => {
+const dropContextListeners = (appId : string) => {
     //iterate through the listeners dictionary and delete any associated with the tab (appId)
     Object.keys(contextListeners).forEach(channel =>{
-        let channelList = contextListeners[channel];
-        let keys = Object.keys(channelList);
-        keys.forEach(k => {
-            let listener = channelList[k];
+        const channelMap = contextListeners.get(channel);
+        channelMap.forEach((listener, key) => {
             if (listener.appId === appId){
-                delete channelList[k];
+                channelMap.delete(key);
             }
         });
-       // contextListeners[channel] = contextListeners[channel].filter(item => {return item !== id; });
     }); 
 };
 
-const setIntentListener = (intent, listenerId, appId) => {
-    if (!intentListeners[intent]){
-        intentListeners[intent] = {}; 
+const setIntentListener = (intent : string, listenerId : string, appId : string) => {
+    if (!intentListeners.has(intent)){
+        intentListeners.set(intent, new Map()); 
     }
-    intentListeners[intent][listenerId] = {appId:appId}; 
+    intentListeners.get(intent).set(listenerId, {appId:appId}); 
 };
 
-const getIntentListeners = (intent, target) => {
-    let result = {};
-    if (!intent) {
-        result = intentListeners;
-    }
-    else {
-        result = intentListeners[intent] ? intentListeners[intent] : {};
-    }
+
+const getIntentListeners = (intent : string, target? : string) : Map<string,Listener> => {
+    const result : Map<string, Listener> = intentListeners.get(intent);
+ 
     //if a target is provided, filter by the app name
-    if (target) {
-        const newResult = {};
-        const keys = Object.keys(result);
-        keys.forEach(k => {
-            const entry = utils.getConnected(result[k].appId).directoryData;
-            if (entry && entry.name === target){
-                newResult[k] = result[k];
+    if (target && result) {
+        result.forEach((listener, key) => {
+            const entry = utils.getConnected(listener.appId).directoryData;
+            if (entry && entry.name !== target){
+                result.delete(key);
             }
-        });
-        result = newResult;
+        } );
     }
     return result;
 
 };
 
 //removes all intent listeners for an endpoiont
-const dropIntentListeners = (port) => {
+const dropIntentListeners = (port : chrome.runtime.Port) => {
     //iterate through the intents and cleanup the listeners...
-    const pId = utils.id(port);
-    Object.keys(intentListeners).forEach(key => {
+    const pId : string = utils.id(port);
+    intentListeners.forEach((listenerMap) =>{
+        listenerMap.forEach((listener, key) => {
+            if (listener.appId === pId){
+                listenerMap.delete(key);
+           }
+        });
+    });
+   /* Object.keys(intentListeners).forEach(key => {
         let lKeys = Object.keys(intentListeners[key]);
         lKeys.forEach(k => {
             if (intentListeners[key][k].appId === pId){
@@ -99,14 +152,14 @@ const dropIntentListeners = (port) => {
         });
            
         
-    });
+    });*/
 };
 
-const getTabChannel = (id) => {
-    return tabChannels[(id + "")];
+const getTabChannel = (id : number) : string => {
+    return tabChannels.get(id);
 };
 
-const open = async (msg, port) => {
+const open = async (msg : FDC3Message, port : chrome.runtime.Port) => {
     return new Promise(async (resolve, reject) => {
         const directoryUrl = await utils.getDirectoryUrl();
         const result = await fetch(`${directoryUrl}/apps/${msg.data.name}`);
@@ -149,43 +202,42 @@ const open = async (msg, port) => {
     });
 };
 
-const getCurrentContext = (msg, port) => {
+const getCurrentContext = (msg : FDC3Message, port : chrome.runtime.Port) : Promise<Context>  => {
     return new Promise((resolve, reject) => {
-        let channel = msg.data.channel;
-        let type = msg.data.contextType;
-        let ctx = {};
+        const channel = msg.data.channel;
+        const type = msg.data.contextType;
+        let ctx : Context = {type:"unknown"};
         if (channel){
             if (type){
-                ctx = contexts[channel].find(c => {
+                ctx = contexts.get(channel).find(c => {
                     return c.type === type;
                 });
             }
             else {
-                ctx = contexts[channel][0] ? contexts[channel][0] : {};
+                ctx = contexts.get(channel)[0] ? contexts.get(channel)[0] : ctx;
             }
         }
         resolve(ctx);
     });
 };
 
-const addContextListener = (msg, port) => {
+const addContextListener = (msg : FDC3Message, port : chrome.runtime.Port) => {
     return new Promise((resolve, reject) => {
-        let c = utils.getConnected(utils.id(port));
+        const c = utils.getConnected(utils.id(port));
         //use channel from the event message first, or use the channel of the sending app, or use default
-        let channel = msg.data.channel ? msg.data.channel : (c && c.channel) ? c.channel : "default";
+        const channel = msg.data !== null && msg.data.channel ? msg.data.channel : (c && c.channel) ? c.channel : "default";
 
         //distinguish "channel listeners" - set on the Channel directly and not movable with channel membership and not subject to default rules
-        contextListeners[channel][msg.data.id] = {
-            "appId":utils.id(port),
-            "contextType":msg.data.contextType, 
-            "isChannel":(msg.data.channel != null)};
+        contextListeners.get(channel).set(msg.data.id,  {
+            appId:utils.id(port),
+            contextType:msg.data.contextType, 
+            isChannel:(msg.data.channel != null)});
 
-        console.log("checking pending contexts",pending_contexts);
         if (pending_contexts.length > 0){
             //first cleanup anything old
             let n = Date.now();
             pending_contexts = pending_contexts.filter(i => {
-                return n - i.ts < pendingIntentTimeout;
+                return n - i.ts < pendingTimeout;
             });
             //next, match on tabId and intent
             pending_contexts.forEach((pContext, index) => {
@@ -194,9 +246,8 @@ const addContextListener = (msg, port) => {
                 if (pContext.tabId === portTabId){ //&& (!msg.data.contextType || (msg.data.contextType && msg.data.contextType === pContext.context.type))){
                     console.log("applying pending context", pContext);   
                     //iterate through each of the registered context listeners, match on context type
-                    let listenerKeys = Object.keys(contextListeners[channel]);
-                    listenerKeys.forEach(k => {
-                        let l = contextListeners[channel][k];
+                    //let listenerKeys = Object.keys(contextListeners[channel]);
+                    contextListeners.get(channel).forEach((l, k) => {
                         if (!l.contextType || (l.contextType && l.contextType === pContext.context.type)){
                             port.postMessage({"topic":"context", "data":{"context": pContext.context,"listenerId":k}});    
                             utils.bringToFront(port.sender.tab); 
@@ -216,67 +267,75 @@ const addContextListener = (msg, port) => {
 };
 
 //drop an individual listener when it is unsubscribed
-const dropContextListener = (msg, port) => {
+const dropContextListener = (msg : FDC3Message, port : chrome.runtime.Port) => {
         const id = msg.data.id;
         //find the listener in the dictionary and delete
         Object.keys(contextListeners).forEach(channel =>{
-            let channelList = contextListeners[channel];
-            if (channelList[id]){
-                delete channelList[id];
+            const channelList = contextListeners.get(channel);
+            if (channelList.has(id)){
+                channelList.delete(id);
             }
           
             });
 };
 
 //drop an individual listener when it is unsubscribed
-const dropIntentListener = (msg, port) => {
+const dropIntentListener = (msg : FDC3Message, port : chrome.runtime.Port) => {
     const id = msg.data.id;
     //find the listener in the dictionary and delete
-    Object.keys(intentListeners).forEach(intent =>{
+    intentListeners.forEach((intentList) => {
+        if (intentList.has(id)){
+            intentList.delete(id);
+        }
+    } );
+   /* Object.keys(intentListeners).forEach(intent =>{
         let intentList = intentListeners[msg.data.intent];
         if (intentList[id]){
             delete intentList[id];
         }
       
-        });
+        });*/
 };
 
 //keep array of pending, id of the tab,  store intent & context, timestamp
 //when a new window connects, throw out anything more than 2 minutes old, then match on url
 //when a match is found, remove match from the list, send intent w/context, and bring to front
 
-const setPendingIntent =function(tabId, intent, context){
-  pending_intents.push({ts:Date.now(), tabId:tabId, intent:intent, context:context});
+const setPendingIntent =function(tabId : number, intent : string, context? : Context){
+  pending_intents.push(new Pending(tabId, {intent:intent, context:context}));
 };
 
-const setPendingContext =function(tabId, context){
-    pending_contexts.push({ts:Date.now(), tabId:tabId, context:context});
+const setPendingContext =function(tabId : number, context: Context){
+    pending_contexts.push(new Pending(tabId, {context:context}));
   };
 
-  const setPendingChannel =function(tabId, channel){
-    pending_channels.push({ts:Date.now(), tabId:tabId, channel:channel});
+  const setPendingChannel =function(tabId: number, channel: string){
+    pending_channels.push(new Pending(tabId, {channel:channel}));
   };
 
-  const applyPendingChannel = function(port){
+  const applyPendingChannel = async function(port : chrome.runtime.Port) : Promise<void>{
+    return new Promise((resolve, reject) => {
+    const thisPort : chrome.runtime.Port = port;
 
     if (pending_channels.length > 0){
         //first cleanup anything old
-        let n = Date.now();
+        const n = Date.now();
         pending_channels = pending_channels.filter(i => {
-            return n - i.ts < pendingIntentTimeout;
+            return n - i.ts < pendingTimeout;
         });
         //next, match on tabId and intent
-        pending_channels.forEach((pChannel, index) => {
+        pending_channels.forEach(async (pChannel, index) => {
            
-            let portTabId = port.sender.tab.id;
+            const portTabId = thisPort.sender.tab.id;
             if (pChannel.tabId === portTabId){
                 console.log("applying pending channel", pChannel);  
                 //send a message back to the content script - updating its channel...
-                port.postMessage({topic:"setCurrentChannel",data:{channel:pChannel.channel}});  
-                joinPortToChannel(pChannel.channel,port);
+                thisPort.postMessage({topic:"setCurrentChannel",data:{channel:pChannel.channel}});  
+                await joinPortToChannel(pChannel.channel,thisPort);
                 //utils.bringToFront(port.sender.tab); 
                 //remove the applied context
                 pending_channels.splice(index,1);
+                resolve();0
             }
         });
 
@@ -284,20 +343,23 @@ const setPendingContext =function(tabId, context){
     }
     else {
         //is the 'global' channel set as default?
-        chrome.storage.sync.get(["default_global"], (items) => {
+        chrome.storage.sync.get(["default_global"], async (items) => {
             if (items.default_global) {
                 console.log("global channel is set to default");
                 //send a message back to the content script - updating its channel...
                 port.postMessage({topic:"setCurrentChannel",data:{channel:"global"}});  
-                joinPortToChannel("global",port);
-            }
+                await joinPortToChannel("global",thisPort);
+    
                 
+            }
+            resolve();   
         });
     }
+    });
 };
 
 
-const addIntentListener = (msg, port) => {
+const addIntentListener = (msg : FDC3Message, port : chrome.runtime.Port) : Promise<void> => {
     return new Promise((resolve, reject) =>{
         let name = msg.data.intent;
         let listenerId = msg.data.id;
@@ -310,7 +372,7 @@ const addIntentListener = (msg, port) => {
             let n = Date.now();
             
             pending_intents = pending_intents.filter(i => {
-                return (n - i.ts) < pendingIntentTimeout;
+                return (n - i.ts) < pendingTimeout;
             });
             //next, match on tab and intent
             pending_intents.forEach((pIntent, index) => {
@@ -329,13 +391,13 @@ const addIntentListener = (msg, port) => {
     
             
         }
-        resolve(true);
+        resolve();
     });
 
 };
 
 
-const broadcast = (msg, port) => {
+const broadcast = (msg : FDC3Message, port : chrome.runtime.Port): Promise<void> => {
     return new Promise((resolve, reject) => {
         let c = utils.getConnected((utils.id(port)));
         //use channel on message first - if one is specified
@@ -343,17 +405,18 @@ const broadcast = (msg, port) => {
         if (channel !== "default"){
             //is the app on a channel?
             // update the channel state
-            contexts[channel].unshift(msg.data.context);
+            contexts.get(channel).unshift(msg.data.context);
 
             //broadcast to listeners
             //match specific listeners on contextType and push context messages for specific listeners
             //do not broadcast if the channel is "default" - this means "off"
             //match each app only once - there can be multiple listeners registered for an app - we only care if valid listeners > 0
             //if (channel !== "default"){
-                let keys = Object.keys(contextListeners[channel]);
+               // let keys = Object.keys(contextListeners[channel]);
                 let matched = [];
-                keys.forEach(k => {
-                    let l = contextListeners[channel][k];
+              //  keys.forEach(k => {
+                  contextListeners.get(channel).forEach((l,k) => {
+                   // let l = contextListeners[channel][k];
                     if (!l.contextType || (l.contextType && l.contextType === msg.data.context.type)){
                         //if (matched.indexOf(l.appId) < 0){
                         //    matched.push(l.appId);
@@ -367,30 +430,29 @@ const broadcast = (msg, port) => {
                 });
                  
             }
-        resolve(true);
+        resolve();
     });
 };
 
-const raiseIntent = async (msg, port) => {
+const raiseIntent = async (msg: FDC3Message, port : chrome.runtime.Port) : Promise<any> => {
     return new Promise(async (resolve, reject) => {
-        let r = [];
+        const r : Array<FDC3App> = [];
 
         //handle the resolver UI closing
-        port.onMessage.addListener(async msg => {
+        port.onMessage.addListener(async (msg : FDC3Message) => {
             if (msg.topic === "resolver-close"){
-                resolve({result:true});
+                resolve(null);
             }
         });
 
-        //add dynamic listeners...
+        //add dynamic listeners from connected tabs
         let intentListeners = getIntentListeners(msg.data.intent, msg.data.target);
         console.log("intentListeners",intentListeners);
         if (intentListeners) {
-            let keys = Object.keys(intentListeners);
-            keys.forEach(k => {
-                let id = intentListeners[k].appId;
+           // let keys = Object.keys(intentListeners);
+           intentListeners.forEach((id) => {
                 //look up the details of the window and directory metadata in the "connected" store
-                let connect = utils.getConnected(id);
+                let connect = utils.getConnected(id.appId);
                 //de-dupe               
                 if (!r.find(item => {
                     return item.details.port.sender.tab.id === connect.port.sender.tab.id;})){
@@ -415,9 +477,8 @@ const raiseIntent = async (msg, port) => {
             }
 
             if (data){
-                data.forEach(entry => {
+                data.forEach((entry : DirectoryApp) => {
                     r.push({type:"directory", details:{directoryData:entry}});
-
                 });
             }
         }    
@@ -520,27 +581,27 @@ const raiseIntent = async (msg, port) => {
 };
 
 
-const resolveIntent = async (msg, port) => {
+const resolveIntent = async (msg : FDC3Message, port : chrome.runtime.Port) : Promise<any> => {
     return new Promise(async (resolve, reject) => {
         //find the app to route to
         const sType = msg.selected.type;
         const sPort = msg.selected.details.port;
         if (sType === "window"){
             let listeners = getIntentListeners(msg.intent);
-            let keys = Object.keys(listeners);
-            let win = null;
-            let id = utils.id(sPort);
-            keys.forEach(k => {
-                if (listeners[k].appId === id){
-                    win = listeners[k].appId;
+            //let keys = Object.keys(listeners);
+            let appId : string = null;
+            const id = utils.id(sPort);
+            listeners.forEach((listener)=> {
+                if (listener.appId === id){
+                    appId = listener.appId;
                 }
             });
            
-            if (win){
-                utils.getConnected(win).port.postMessage({topic:"intent", data:{intent:msg.intent, context: msg.context}});    
-                utils.bringToFront(win); 
+            if (appId){
+                utils.getConnected(appId).port.postMessage({topic:"intent", data:{intent:msg.intent, context: msg.context}});    
+                utils.bringToFront(appId); 
                 let id = utils.id(sPort);
-                resolve({result:true, source:id, version:"1.0", tab:sPort.sender.tab.id});
+                resolve({source:id, version:"1.0", tab:sPort.sender.tab.id});
             }
             
         }
@@ -582,8 +643,8 @@ const resolveIntent = async (msg, port) => {
 };
 
 
-const joinPortToChannel = (channel, port, restoreOnly) => {
-
+const joinPortToChannel = (channel : string, port : chrome.runtime.Port, restoreOnly? : boolean) : Promise<void> => {
+    return new Promise((resolve, reject) => {
     let chan = channel;
     let _id = utils.id(port);
     let c = utils.getConnected(_id);
@@ -592,19 +653,20 @@ const joinPortToChannel = (channel, port, restoreOnly) => {
     //are the new channel and previous the same?  then no-op...
     if (prevChan !== chan){
          //iterate through the listeners
-        let prevKeys = Object.keys(contextListeners[prevChan]);
-        prevKeys.forEach(k => {
+       // let prevKeys = Object.keys(contextListeners[prevChan]);
+      //  prevKeys.forEach(k => {
+          contextListeners.get(prevChan).forEach((l, k) => {
             //remove listener from previous channel...
-            let l = contextListeners[prevChan][k];
+           // let l = contextListeners[prevChan][k];
             if (l.appId === _id){
                 //add listener to new channel
                 //make sure there's a dictionary for the channel first...
-                if (!contextListeners[chan]){
-                    contextListeners[chan] = {};
-                    }
-                contextListeners[chan][k] = {appId:_id};
+                if (!contextListeners.has(chan)){
+                    contextListeners.set(chan,new Map());
+                }
+                contextListeners.get(chan).set(k, {appId:_id});
                 //and delete from old
-                delete contextListeners[prevChan][k];
+                contextListeners.get(prevChan).delete(k);
             } 
 
             
@@ -612,66 +674,73 @@ const joinPortToChannel = (channel, port, restoreOnly) => {
         });
         
         c.channel = chan;
-        tabChannels[(port.sender.tab.id + "")] = chan;
+        tabChannels.set(port.sender.tab.id, chan);
 
         //update the UI for the color picker in the extension UI
         //if the joined channel is the special "default" identiefier or NOT a system channel, then skip this part
-        let channels = utils.getSystemChannels();
-        let selectedChannel = channels.find(_chan => {return _chan.id === chan;});
-        if (chan === "default" || selectedChannel){
+        const channels : Array<Channel> = utils.getSystemChannels();
+        const selectedChannel = channels.find((_chan :Channel) => {return _chan.id === chan;});
+        if (chan === "default" || typeof(selectedChannel) !== "undefined"){
             //set the badge state
-            let bText = (chan === "default" || chan === "global") ? "" : "+";
+            const bText = (chan === "default") ? "" : (chan === "global") ? "G" : "+";
             chrome.browserAction.setBadgeText({text:bText,tabId:port.sender.tab.id});    
         
-            let color = selectedChannel && selectedChannel.displayMetadata && selectedChannel.displayMetadata.color ? selectedChannel.displayMetadata.color : "";
+            const color = selectedChannel && selectedChannel.displayMetadata && selectedChannel.displayMetadata.color ? selectedChannel.displayMetadata.color : null;
+            if (color !== null){
             chrome.browserAction.setBadgeBackgroundColor({color:color,
                 tabId:port.sender.tab.id});
+            }
         }
         //push current channel context 
         //if there is a context...
-        if (! contexts[chan]){
-            contexts[chan] = [];
+        if (! contexts.has(chan)){
+            contexts.set(chan,[]);
         }
-        let ctx = contexts[chan][0];
+        const ctx = contexts.get(chan)[0];
+        let contextSent : boolean = false;
         if (ctx && !restoreOnly){
             // send to individual listenerIds
-            let listenerKeys = Object.keys(contextListeners[chan]);
-            let contextSent = false;
-            if (listenerKeys.length > 0){
-                listenerKeys.forEach(k => {
-                    let l = contextListeners[chan][k];
+           // let listenerKeys = Object.keys(contextListeners[chan]);
+            
+            //if (listenerKeys.length > 0){
+            //    listenerKeys.forEach(k => {
+                contextListeners.get(chan).forEach((l,k) => {
+                    //let l = contextListeners[chan][k];
                     if ((l.appId === utils.id(port)) && !l.contextType || (l.contextType && l.contextType === ctx.type)){
                         port.postMessage({"topic":"context", "data":{"context": ctx,"listenerId":k}});  
                         contextSent = true;  
                     }
                 });
-            }
+           // }
             if (!contextSent){
-                setPendingContext(port.sender.tab.id,contexts[chan][0]);
+                setPendingContext(port.sender.tab.id,contexts.get(chan)[0]);
             }
         }
+        resolve();
         //port.postMessage({topic:"context", data:{context:contexts[chan][0]}});
     }
+    });
 };
 
-const joinChannel = (msg, port) => {
-    return new Promise((resolve, reject) => {
-        joinPortToChannel(msg.data.channel,port, msg.data.restoreOnly);
+const joinChannel = async (msg : FDC3Message, port : chrome.runtime.Port) => {
+    console.log("joinChannel", msg);
+    return new Promise(async (resolve, reject) => {
+        await joinPortToChannel(msg.data.channel,port, msg.data.restoreOnly);
         resolve(true);
     });
 };
 
-const getSystemChannels = async (msg, port) => {
+const getSystemChannels = async (msg : FDC3Message, port : chrome.runtime.Port) => {
     return new Promise(async (resolve, reject) => {
         resolve(utils.getSystemChannels());
     });
 };
 
 //generate / get full channel object from an id - returns null if channel id is not a system channel or a registered app channel
-const getChannelMeta = (id) => {
-    let channel = null;
+const getChannelMeta = (id : string) : Channel => {
+    let channel : Channel = null;
     //is it a system channel?
-    const sChannels = utils.getSystemChannels();
+    const sChannels : Array<Channel> = utils.getSystemChannels();
     let sc = sChannels.find(c => {
         return c.id === id;
     });
@@ -691,7 +760,7 @@ const getChannelMeta = (id) => {
     return channel;
 };
 
-const getOrCreateChannel = async (msg, port) => {
+const getOrCreateChannel = async (msg : FDC3Message, port : chrome.runtime.Port) : Promise<any> => {
     return new Promise(async (resolve, reject) => {
         const id = msg.data.channelId;
         //reject with error is reserved 'default' term
@@ -699,14 +768,14 @@ const getOrCreateChannel = async (msg, port) => {
             reject(utils.ChannelError.CreationFailed);
         }
         else {
-            let channel = getChannelMeta(id);
+            let channel : Channel = getChannelMeta(id);
         
             //if not found... create as an app channel
             if (! channel){
                 channel = {id:id, type:"app"};
                 //add an entry for the context listeners
-                contextListeners[id] = {};
-                contexts[id] = [];
+                contextListeners.set(id, new Map());
+                contexts.set(id, []);
                 app_channels.push(channel);
             }
             resolve(channel);
@@ -714,20 +783,20 @@ const getOrCreateChannel = async (msg, port) => {
     });
 };
 
-const getCurrentChannel = async (msg, port) => {
+const getCurrentChannel = async (msg : FDC3Message, port : chrome.runtime.Port) : Promise<any>=> {
     return new Promise(async (resolve, reject) => {
-        const c = utils.getConnected(utils.id(port)                               );
+        const c = utils.getConnected(utils.id(port));
         //get the  channel
         let chan = c.channel ? getChannelMeta(c.channel) : null;
         resolve(chan);
     });
 };
 
-const leaveCurrentChannel = async (msg, port) => {
+const leaveCurrentChannel = async (msg : FDC3Message, port : chrome.runtime.Port) : Promise<void> => {
     return new Promise(async (resolve, reject) => {
         //'default' means we have left all channels
         joinPortToChannel("default", port);
-        resolve(true);
+        resolve();
     });
 };
 
@@ -736,7 +805,7 @@ const leaveCurrentChannel = async (msg, port) => {
 //     intent: { name: "StartChat", displayName: "Chat" },
 //     apps: [{ name: "Skype" }, { name: "Symphony" }, { name: "Slack" }]
 // }
-const findIntent = async (msg, port) => {
+const findIntent = async (msg : FDC3Message, port : chrome.runtime.Port) : Promise<any> => {
     return new Promise(async (resolve, reject) => {
         let intent = msg.data.intent;
         let context = msg.data.context;
@@ -751,15 +820,23 @@ const findIntent = async (msg, port) => {
                 url+= `&context=${context}`;
             }
             try {
-            let _r = await fetch(url);
-            let j = await _r.json();
-            let r = {intent:{}, apps:[]};
-            r.apps = j;
-            let intnt = r.apps[0].intents.filter(i => {return i.name === intent;});
+            const _r = await fetch(url);
+            const j : Array<DirectoryApp> = await _r.json();
+            const r : AppIntent = {intent:{name:"",displayName:""}, apps:[]};
+
+           // r.apps = j;
+           //find intent display name from app directory data
+            const intnt = j[0].intents.filter(i => {return i.name === intent;});
             if (intnt.length > 0){
                 r.intent.name = intnt[0].name;
                 r.intent.displayName = intnt[0].display_name;
             }
+            j.forEach((dirApp) => {
+                r.apps.push({name:dirApp.name, 
+                        title:dirApp.title,
+                        description:dirApp.description,
+                        icons:dirApp.icons.map((icon) => {return icon.icon;})});
+            });
             resolve(r);
             
             }
@@ -784,7 +861,7 @@ const findIntent = async (msg, port) => {
 //     intent: { name: "StartChat", displayName: "Chat" },
 //     apps: [{ name: "Skype" }, { name: "Symphony" }, { name: "Slack" }]
 // }];
-const findIntentsByContext = async (msg, port) => {
+const findIntentsByContext = async (msg : FDC3Message, port : chrome.runtime.Port) : Promise<Array<AppIntent>> => {
     return new Promise(async (resolve, reject) => {
         let context = msg.data.context;
         if (context.type){
@@ -792,52 +869,58 @@ const findIntentsByContext = async (msg, port) => {
         }    
         if (context){
             const directoryUrl = await utils.getDirectoryUrl();
-            let url = `${directoryUrl}/apps/search?context=${context}`;   
-            let _r = await fetch(url);
-            let d = await _r.json();
-            let r = [];
+            const url = `${directoryUrl}/apps/search?context=${context}`;   
+            const _r = await fetch(url);
+            const d : Array<DirectoryApp> = await _r.json();
+            let r : Array<AppIntent> = [];
             if (d){
-                let found = {};
-                let intents = [];
+                const found : Map<string,Array<AppMetadata>> = new Map();
+                let intents : Array<IntentMetadata>= [];
                 d.forEach(item => {
+                    const appMeta : AppMetadata = {name:item.name, 
+                        title:item.title,
+                        description:item.description,
+                        icons:item.icons.map((icon) => {return icon.icon;})};
+
                     item.intents.forEach(intent => {
-                        if (!found[intent.name]){
+                        if (!found.has(intent.name)){
                             intents.push({name:intent.name,displayName:intent.display_name});
-                            found[intent.name] = [item];
+                            found.set(intent.name,[appMeta])
+                            
                         }
                         else {
-                            found[intent.name].push(item);
+                            found.get(intent.name).push(appMeta);
                         }
                     });
                 });
 
                 intents.forEach(intent =>{
-                    let entry = {intent:intent,apps:found[intent.name]};
-
+                    const entry : AppIntent = {intent:intent,apps:found.get(intent.name)};
                     r.push(entry);
                 });
             }
             resolve(r);
         }
         else {
-            reject("no context");
+            reject("no context provided");
         }
     });
 };
 
-const getTabTitle = (msg, port) => {
+const getTabTitle = (msg : FDC3Message, port : chrome.runtime.Port) : Promise<void> => {
     return new Promise((resolve, reject) => {
-        let id = msg.tabId;
+        const id = msg.tabId;
         chrome.tabs.sendMessage(id, {"message": "get-tab-title"}, function(r){
             port.postMessage({topic:"tabTitle",
                                 tabId:id,
                             data:{title:r}});
-            resolve(true);
+            resolve();
         });
     });
 };
 
-export default{ 
+
+export default { 
     open,
     addContextListener,
     addIntentListener,
