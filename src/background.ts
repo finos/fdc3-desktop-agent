@@ -75,6 +75,7 @@ chrome.runtime.onConnect.addListener( async (port : chrome.runtime.Port) => {
         const dir_url : URL = new URL(app.start_url);
         return app_url.origin === dir_url.origin;
     });
+
     let match : DirectoryApp = null;
         
 
@@ -98,14 +99,27 @@ chrome.runtime.onConnect.addListener( async (port : chrome.runtime.Port) => {
                 const urlMatch = lookupData.filter(d => {
                     const d_url : URL = new URL(d.start_url);
                     
-                    return  d.start_url === app_url.href || d_url.pathname === app_url.pathname || app_url.pathname.indexOf(d_url.pathname) === 0;
+                    return  d.start_url === app_url.href; //app_url.pathname.indexOf(d_url.pathname) === 0;
                 });
                 if (urlMatch.length === 1){
                     match = urlMatch[0];
                 }
-                else {
-                    console.log("No matching appd entries found");
+            }
+            if (match === null) {
+                //try matching on path start
+                const urlMatch = lookupData.filter(d => {
+                    const d_url : URL = new URL(d.start_url);
+                    
+                    return  app_url.pathname.indexOf(d_url.pathname) === 0;
+                });
+                if (urlMatch.length === 1){
+                    match = urlMatch[0];
                 }
+
+            }
+            else {
+                console.log("No matching appd entries found");
+            
             }
         }
     }
