@@ -153,25 +153,29 @@ port.onMessage.addListener(async (msg) => {
         });
 
         //is there actions meta data defined? If so, wire up listeners if intents and context metadata are there
-        const mani = msg.data.directory ? msg.data.directory.actions : null;
+        const actions = msg.data.directory ? msg.data.directory.actions : null;
+        console.log("env data", msg.data);
+        console.log("actions", actions);
         //set globals
         contentName = msg.data.directory ? msg.data.directory.name : null;
-        contentActions = mani;
+        contentActions = actions;
         //if there is action metadata for the app in the directory - set up intent & context handlers
-        if (mani){
+        if (actions){
             //generate a guid for the listener
             //this would normally come from the api layer in the dom...
             const guid = utils.guid();
-            if (mani.intents){
+            console.log("actions", actions);
+            if (actions.intents){
                 //iterate through the intents, and set listeners
-                mani.intents.forEach((intent : any) => {
+                actions.intents.forEach((intent : any) => {
                     port.postMessage({topic:"addIntentListener", "data": {id: guid, intent:intent.intent }}); 
                     _intentHandlers.push(intent.intent);
                 });
             }
-            if (mani.contexts){
+            if (actions.contexts){
                 //iterate through context metadata and set listeners
-                mani.contexts.forEach((context : Context) => {
+                
+                actions.contexts.forEach((context : Context) => {
                     port.postMessage({topic:"addContextListener", "data": {id: guid, context:context.type}}); 
                     _contextHandlers.push(context.type);
                 });
