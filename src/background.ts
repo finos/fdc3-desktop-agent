@@ -10,41 +10,38 @@ import utils from "./utils";
 import listeners from "./bg-listeners";
 import {EnvironmentData, DirectoryApp} from './types/FDC3Data';
 import {FDC3Message} from './types/FDC3Message';
+import { resolve } from "dns";
 
 
 listeners.initContextChannels(utils.getSystemChannels());
+
+//in memory cache of apps
+let apps_list : any = null;
 
 //get list of all apps on start up - use this cache only for checking tabs
 //refresh the list ~ 1/hr
 //add option for manual refresh of the list
 const getApps = async () : Promise<Array<DirectoryApp>> => {
     return new Promise( async (resolve, reject) =>{
-        let apps : Array<DirectoryApp> = [];
         //check the cache
-        chrome.storage.sync.get(["apps_list"], async (items) => {
-            let doFetch : boolean = false;
-            if (items.apps_list) {
+        if (apps_list !== null  && (Date.now() - apps_list.ts < 3600000)) {
                 //get the timestamp
-                if (items.apps_list.ts && (Date.now() - items.apps_list.ts > 3600000)){
-                   doFetch = true;
-                }
+                resolve(apps_list.data); 
+        }
+        else {
+            const directoryUrl = await utils.getDirectoryUrl();
+            const result = await fetch(`${directoryUrl}/apps/`);
+            if (result) {
+                const apps :   Array<DirectoryApp> = await result.json();
+                apps_list = {ts:Date.now(), data:apps};
+                resolve(apps);
             }
             else {
-                doFetch = true;        
+                resolve([]);
             }
-            if (doFetch){
-                const directoryUrl = await utils.getDirectoryUrl();
-                const result = await fetch(`${directoryUrl}/apps/`);
-                if (result) {
-                    apps  = await result.json();
-                }
-                chrome.storage.sync.set({"apps_list":{ts:Date.now(), data:apps}});
-                resolve(apps);
-            } else {
-                resolve(items.apps_list.data); 
-            }
+                
+        } 
         
-        });
     });
 };
 
@@ -74,7 +71,7 @@ chrome.runtime.onConnect.addListener( async (port : chrome.runtime.Port) => {
     
     //see if there was an exact match on origin
     //if not (either nothing or ambiguous), then let's treat this as dynamic - i.e. no directory match
-    const lookupData : Array<DirectoryApp> = appsList.filter(async (app: DirectoryApp)=> {
+    const lookupData : Array<DirectoryApp> = appsList.filter((app: DirectoryApp)=> {
         const dir_url : URL = new URL(app.start_url);
         return app_url.origin === dir_url.origin;
     });
@@ -99,7 +96,9 @@ chrome.runtime.onConnect.addListener( async (port : chrome.runtime.Port) => {
             else if (pathMatch.length > 1) {
                 //try matching on urls
                 const urlMatch = pathMatch.filter(d => {
-                    return  d.start_url === app_url.href;
+                    const d_url : URL = new URL(d.start_url);
+                    
+                    return  d.start_url === app_url.href || d_url.pathname === app_url.pathname || app_url.pathname.indexOf(d_url.pathname) === 0;
                 });
                 if (urlMatch.length === 1){
                     match = urlMatch[0];
