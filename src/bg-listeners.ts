@@ -206,7 +206,7 @@ const getCurrentContext = (msg : FDC3Message, port : chrome.runtime.Port) : Prom
     return new Promise((resolve, reject) => {
         const channel = msg.data.channel;
         const type = msg.data.contextType;
-        let ctx : Context = {type:"unknown"};
+        let ctx : Context = null; 
         if (channel){
             if (type){
                 ctx = contexts.get(channel).find(c => {
@@ -335,7 +335,7 @@ const setPendingContext =function(tabId : number, context: Context){
                 //utils.bringToFront(port.sender.tab); 
                 //remove the applied context
                 pending_channels.splice(index,1);
-                resolve();0
+                resolve();
             }
         });
 
@@ -415,6 +415,7 @@ const broadcast = (msg : FDC3Message, port : chrome.runtime.Port): Promise<void>
                // let keys = Object.keys(contextListeners[channel]);
                 let matched = [];
               //  keys.forEach(k => {
+                if (contextListeners.get(channel).size > 0){
                   contextListeners.get(channel).forEach((l,k) => {
                    // let l = contextListeners[channel][k];
                     if (!l.contextType || (l.contextType && l.contextType === msg.data.context.type)){
@@ -423,12 +424,14 @@ const broadcast = (msg : FDC3Message, port : chrome.runtime.Port): Promise<void>
                         //}
                         if (channel !== "default" ){
                             //mixin the listenerId
-                            let data = {"listenerId":k, "eventId":msg.data.eventId, "ts":msg.data.ts, "context":msg.data.context};
-                            utils.getConnected(l.appId).port.postMessage({topic:"context", listenerId:k, data:data});
+                            const data = {"listenerId":k, "eventId":msg.data.eventId, "ts":msg.data.ts, "context":msg.data.context};
+                            if (utils.getConnected(l.appId) && utils.getConnected(l.appId).port){
+                                utils.getConnected(l.appId).port.postMessage({topic:"context", listenerId:k, data:data});
+                            }
                         }
                     }
                 });
-                 
+                }  
             }
         resolve();
     });

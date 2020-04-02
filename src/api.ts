@@ -83,7 +83,7 @@ class Channel implements fdc3Channel {
         wireMethod("broadcast", {context:context,channel:this.id}, true);
     }
 
-    getCurrentContext(contextType : string){
+    getCurrentContext(contextType? : string){
         return wireMethod("getCurrentContext",{channel:this.id, contextType:contextType});
     }
    
@@ -119,17 +119,12 @@ const wireMethod = (method :string, detail : FDC3EventDetail, config? : any) : P
         return new Promise((resolve, reject) => {
            
             document.addEventListener(`FDC3:return_${eventId}`,(event : FDC3Event)=>{
-                console.log("api return",event);
-               // if (event.detail){
                     let r = event.detail;
                     if (r !== null && config && config.resultHandler){
                         r = config.resultHandler.call(this,r);
                     }
                     resolve(r);
-                //}
-               // else {
-               //     reject(event.detail);
-               // }           
+                  
             },{once:true});
             
             
