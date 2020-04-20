@@ -7,7 +7,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "",
+  "license": "Apache-2.0",
   "devDependencies": {
     "copy-webpack-plugin": "^5.0.5",
     "file-loader": "^5.0.2",
