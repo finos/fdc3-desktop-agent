@@ -128,6 +128,8 @@ __Message Payload Structure:__
 ## Contributing
 Like [FDC3](https://github.com/finos/fdc3), this is an Apache 2.0 licensed open source project that welcomes contributions!   
 
+See [Contributing](CONTRIBUTING.md) for more details.
+
 
 
 
