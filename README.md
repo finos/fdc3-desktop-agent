@@ -1,5 +1,6 @@
 # FDC3 desktop-agent
-This project is a Chrome Extension implementation of an FDC3 Desktop Agent.  Its purpose is to provide a quick and easy way to get started with FDC3 as an app provider and an open source reference implementation of a desktop agent.  Since the extension allows you to just use Chrome, you can plug in your own web apps and even use some common apps on the web as well as some that have been published to demo this project. 
+The FDC3 Desktop Agent is an open source implementation of FDC3 as a Chrome Extension. Its purpose is to provide a quick and easy way for app developers to get started with the FDC3 APIs.  The extension makes FDC3 directly available in Chrome and provides a default App Directory with a number of demo apps available.
+ 
 
 __Please note:__ This project is not intended to be an entire financial desktop solution, it does not address windowing, native integration, or integration with other desktop agents.  There are great products such as [OpenFin](https://www.openfin.co) which handle these problems.
 
