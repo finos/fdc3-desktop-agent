@@ -9,4 +9,5 @@ export interface FDC3Message {
     tabId? : number;
     selected ? : FDC3App;
     context ? : Context;
+    source? : string;
 }

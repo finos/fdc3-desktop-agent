@@ -1,4 +1,4 @@
 import {Context} from './Context';
 
 
-export type ContextHandler = (context: Context) => void;
+export type ContextHandler = (context: Context, source? : string) => void;

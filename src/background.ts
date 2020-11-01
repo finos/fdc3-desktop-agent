@@ -165,6 +165,9 @@ chrome.runtime.onConnect.addListener( async (port : chrome.runtime.Port) => {
     const wrapListener = async (msg : FDC3Message, port : chrome.runtime.Port, decorator? : Function) => {
         let r = null;
 
+        //resolve the port to instanceId and decorate the message with source prop
+        msg.source = utils.id(port);
+
         const topicIndex : number = Object.keys(listeners).indexOf(msg.topic);
 
         if (topicIndex > -1){
