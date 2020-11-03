@@ -282,11 +282,14 @@ class DesktopAgent implements fdc3DesktopAgent {
 
  document.addEventListener("FDC3:intent",(event : FDC3Event) => {
     const listeners = _intentListeners.get(event.detail.data.intent);
+    let result = null;
      if (listeners){
         listeners.forEach(l => {
             l.handler.call(this,event.detail.data.context, event.detail.source);
         });
      }
+     //emit return event
+     document.dispatchEvent(utils.fdc3Event(FDC3EventEnum.IntentComplete, {data:result }));
 });
 
 //map of context listeners by id

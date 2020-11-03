@@ -59,7 +59,8 @@ export enum FDC3EventEnum  {
     GetCurrentChannel = "getCurrentChannel",
     JoinChannel = "joinChannel",
     DropContextListener = "dropContextListener",
-    DropIntentListener = "dropIntentListener"
+    DropIntentListener = "dropIntentListener",
+    IntentComplete = "intentComplete"
  };
 
 /*export {

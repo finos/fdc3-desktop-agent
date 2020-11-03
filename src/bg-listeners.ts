@@ -70,6 +70,7 @@ interface Listener {
     appId : string;
     contextType? : string;
     isChannel?:boolean;
+    listenerId:string;
 }
 
 
@@ -81,6 +82,9 @@ let pending_intents : Array<Pending> = [];
 let pending_contexts : Array<Pending> = [];
 //collection of queued channels 
 let pending_channels : Array<Pending> = [];
+
+//map of pending contexts for specific app instances 
+const pending_instance_context : Map<string, Map<string, any>> = new Map();
 
 // map of all running contexts keyed by channel 
 const contexts : Map<string,Array<Context>> = new Map([["default",[]]]);
@@ -129,7 +133,7 @@ const setIntentListener = (intent : string, listenerId : string, appId : string)
     if (!intentListeners.has(intent)){
         intentListeners.set(intent, new Map()); 
     }
-    intentListeners.get(intent).set(listenerId, {appId:appId}); 
+    intentListeners.get(intent).set(listenerId, {appId:appId, listenerId:listenerId}); 
 };
 
 
@@ -241,21 +245,60 @@ const getCurrentContext = (msg : FDC3Message, port : chrome.runtime.Port) : Prom
 
 const addContextListener = (msg : FDC3Message, port : chrome.runtime.Port) => {
     return new Promise((resolve, reject) => {
-        const c = utils.getConnected(utils.id(port));
+        const source = utils.id(port); //this is the app instance calling addContextListener
+        const c = utils.getConnected(source);
        
-        //if there is an innstanceId specified, this call is to listen to context from a specific app instance
+        //if there is an instanceId specified, this call is to listen to context from a specific app instance
         //this then goes to a separate map
-        if (msg.data.instanceId){
+        const instanceId = msg.data.instanceId;
+        if (instanceId){
+            console.log("addContextLister ",instanceId, instanceListeners, pending_instance_context);
             //is there already an entry for the instanceId?
             //if not, initialize one
-            if (!instanceListeners.has(msg.data.instanceId)){
-                instanceListeners.set(msg.data.instanceId, new Map());
+            if (!instanceListeners.has(source)){
+                instanceListeners.set(source, new Map());
             }
-            instanceListeners.get(msg.data.instanceId).set(msg.data.id,{
-                appId:utils.id(port),
+            console.log("set listener for message ", msg);
+            instanceListeners.get(source).set(instanceId,{
+                listenerId:msg.data.id,
+                appId:utils.id(port), //should this be the context of the source (setting handler) or the target (app we're listening to context from?)
                 contextType:msg.data.contextType, 
                 isChannel:false});
             
+            //check for pending contexts from the instance
+
+            if (pending_instance_context.has(source) && pending_instance_context.get(source).has(instanceId)){
+                //first cleanup anything old
+              //  let n = Date.now();
+              //  pending_contexts = pending_contexts.filter(i => {
+               //     return n - i.ts < pendingTimeout;
+              //  });
+                //match on instanceId and source
+               /* pending_contexts.forEach((pContext, index) => {
+                   
+                    let portTabId = port.sender.tab.id;
+                    if (pContext.tabId === portTabId){ //&& (!msg.data.contextType || (msg.data.contextType && msg.data.contextType === pContext.context.type))){
+                        console.log("applying pending context", pContext);   
+                        //iterate through each of the registered context listeners, match on context type
+                        //let listenerKeys = Object.keys(contextListeners[channel]);
+                        instanceListeners.get(instanceId).forEach((l, k) => {
+                            if (!l.contextType || (l.contextType && l.contextType === pContext.context.type)){
+                                port.postMessage({"topic":"context", "data":{"context": pContext.context,"listenerId":k}, source:pContext.source});    
+                                utils.bringToFront(port.sender.tab); 
+                                //remove the applied context
+                                pending_contexts.splice(index,1);
+                            }
+                        });
+                        
+                    }
+                });*/
+                port.postMessage( {"topic":"context", "data":pending_instance_context.get(source).get(instanceId), source:source});    
+                //remove the pennding message
+                pending_instance_context.get(source).delete(instanceId);
+                if (pending_instance_context.get(source).size === 0){
+                    pending_instance_context.delete(source);
+                }
+            }
             resolve(true);
         }
 
@@ -265,6 +308,7 @@ const addContextListener = (msg : FDC3Message, port : chrome.runtime.Port) => {
         //distinguish "channel listeners" - set on the Channel directly and not movable with channel membership and not subject to default rules
         contextListeners.get(channel).set(msg.data.id,  {
             appId:utils.id(port),
+            listenerId:msg.data.id,
             contextType:msg.data.contextType, 
             isChannel:(msg.data.channel != null)});
 
@@ -284,7 +328,7 @@ const addContextListener = (msg : FDC3Message, port : chrome.runtime.Port) => {
                     //let listenerKeys = Object.keys(contextListeners[channel]);
                     contextListeners.get(channel).forEach((l, k) => {
                         if (!l.contextType || (l.contextType && l.contextType === pContext.context.type)){
-                            port.postMessage({"topic":"context", "data":{"context": pContext.context,"listenerId":k}, source:pContext.source});    
+                            port.postMessage({"topic":"context", "data":{"context": pContext.context,"listenerId":l.listenerId}, source:pContext.source});    
                             utils.bringToFront(port.sender.tab); 
                             //remove the applied context
                             pending_contexts.splice(index,1);
@@ -450,20 +494,42 @@ const broadcast = (msg : FDC3Message, port : chrome.runtime.Port): Promise<void>
         //add the source to the message
         msg.source = sourceId;
         let c = utils.getConnected((sourceId));
-        //are there instanceId listeners for this instance and context?
-        if (instanceListeners.has(sourceId)){
-            const listeners : Map<string, Listener> = instanceListeners.get(sourceId);
-            //if there is a targetId (an instanceId on the broadcast message) apply that only
-            const targetId :string = msg.data.instanceId;
-            if (listeners.has(targetId)){
-                dispatchContext(listeners.get(targetId), targetId, msg);
-            } else {
-                //otherwise, iterate through any listeners for the source instance and apply
-                listeners.forEach((l,k) => {
-                    dispatchContext(l,k,msg);
-                });
-            
+
+        //if there is an instanceId provided on the message - this is the instance target of the broadcast
+        //meaning this is a point-to-point com between two instances
+        //if the target listener is registered for the source instance, then dispatch the context
+        //else, add to the pending queue for instances
+        const targetId :string = msg.data.instanceId;
+        if (targetId){
+            console.log(`broadcast message = '${JSON.stringify(msg)}' target = '${targetId}' source = '${sourceId}'`);
+            let setPending : boolean = true;
+            if (instanceListeners.has(targetId)){
+                const listeners : Map<string, Listener> = instanceListeners.get(targetId);
+                
+                if (listeners.has(sourceId)){
+                    const listener : Listener = listeners.get(sourceId);
+                    dispatchContext(listener, listener.listenerId, msg);
+                   
+                    setPending = false;
+                } /*else {
+                    //otherwise, iterate through any listeners for the source instance and apply
+                    listeners.forEach((l,k) => {
+                        dispatchContext(l,k,msg);
+                    });
+                
+                }*/
+            }// else {
+                //add to pending instance context
+            //}
+            if (setPending){
+                //if there is no entry for the target yet, initialize
+                if (!pending_instance_context.has(targetId)){
+                    pending_instance_context.set(targetId, new Map());
+                }
+                pending_instance_context.get(targetId).set(sourceId,msg);
             }
+            //if we have a target, we aren't going to go to other channnels - so resolve
+            resolve();
         }
 
         //use channel on message first - if one is specified
@@ -488,9 +554,9 @@ const broadcast = (msg : FDC3Message, port : chrome.runtime.Port): Promise<void>
                         
                         if (channel !== "default" ){
                             //mixin the listenerId
-                            const data = {"listenerId":k, "eventId":msg.data.eventId, "ts":msg.data.ts, "context":msg.data.context};
+                            const data = {"listenerId":l.listenerId, "eventId":msg.data.eventId, "ts":msg.data.ts, "context":msg.data.context};
                             if (utils.getConnected(l.appId) && utils.getConnected(l.appId).port){
-                                utils.getConnected(l.appId).port.postMessage({topic:"context", listenerId:k, data:data, source:msg.source});
+                                utils.getConnected(l.appId).port.postMessage({topic:"context", listenerId:l.listenerId, data:data, source:msg.source});
                             }
                         }
                     }
@@ -737,7 +803,7 @@ const joinPortToChannel = (channel : string, port : chrome.runtime.Port, restore
                 if (!contextListeners.has(chan)){
                     contextListeners.set(chan,new Map());
                 }
-                contextListeners.get(chan).set(k, {appId:source});
+                contextListeners.get(chan).set(k, {appId:source,listenerId:k});
                 //and delete from old
                 contextListeners.get(prevChan).delete(k);
             } 
