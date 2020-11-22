@@ -280,8 +280,9 @@ let resolver : HTMLElement = null;
         resolver.style.display = "block";
         //resolve the intent name to the display name for the intent - by looking it up in the data response
         let dName : string = null;
+        
         request.data.forEach((item : any )=> {
-            if (!dName && Array.isArray(item.details.directoryData.intents)){
+            if (!dName && item.details.directoryData && Array.isArray(item.details.directoryData.intents)){
                 item.details.directoryData.intents.forEach((intent : any) => {
                     if(intent.name === request.intent){
                         dName = intent.display_name;
