@@ -132,6 +132,18 @@ const bringToFront = (id : any) : Promise<chrome.tabs.Tab> => {
 };
 
 /**
+ * 
+ * Temporary function to shim not having this metadata in the appD 
+ * if the intent is a data intent, then we won't bring it's tab to front when the intent  is resovled
+ * @param intentName - name of the intent to check
+ */
+const isDataIntent = (intentName: string): boolean => {
+    //list of known data intents (right now, this is just the genesis demo one)
+    const dataIntents: Array<string> = ["genesis.FindFXPrice"]
+    return dataIntents.includes(intentName);
+};
+
+/**
  * generate an id from a port object
  * this is the identifier used for connection and channel tracking
  */
@@ -158,5 +170,6 @@ export default{
     ChannelError,
     id,
     guid,
-    fdc3Event
+    fdc3Event,
+    isDataIntent
 };

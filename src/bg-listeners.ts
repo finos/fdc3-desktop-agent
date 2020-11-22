@@ -462,7 +462,10 @@ const addIntentListener = (msg : FDC3Message, port : chrome.runtime.Port) : Prom
                     console.log("applying pending intent", pIntent);    
                     //refactor with other instances of this logic
                     port.postMessage({"topic":"intent", "data":{"intent":pIntent.intent, "context": pIntent.context}, "source":pIntent.source});    
-                    utils.bringToFront(port.sender.tab); 
+                    //bringing the tab to front conditional on the type of intent
+                    if (! utils.isDataIntent(pIntent.intent)){
+                        utils.bringToFront(port.sender.tab);
+                    }
                     //remove the applied intent
                     pending_intents.splice(index,1);
                 }
@@ -628,7 +631,11 @@ const raiseIntent = async (msg: FDC3Message, port : chrome.runtime.Port) : Promi
                 if (r[0].type === "window"){
                     
                     r[0].details.port.postMessage({topic:"intent", data:msg.data, source:msg.source});
-                    utils.bringToFront(r[0].details.port);
+                    //bringing the tab to front conditional on the type of intent
+                    if (! utils.isDataIntent(msg.data.intent)){
+                        utils.bringToFront(r[0].details.port);
+                    }
+                    
                     let id = utils.id(r[0].details.port);
                     resolve({result:true, source:id, version:"1.0"});
                 } else if (r[0].type === "directory"){
@@ -738,7 +745,10 @@ const resolveIntent = async (msg : FDC3Message, port : chrome.runtime.Port) : Pr
             if (appId){
                 console.log("send intent from source", source);
                 utils.getConnected(appId).port.postMessage({topic:"intent", data:{intent:msg.intent, context: msg.context}, source:source});    
-                utils.bringToFront(appId); 
+                //bringing the tab to front conditional on the type of intent
+                if (! utils.isDataIntent(msg.intent)){
+                    utils.bringToFront(appId); 
+                }
                 let id = utils.id(sPort);
                 resolve({source:id, version:"1.0", tab:sPort.sender.tab.id});
             }
