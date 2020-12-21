@@ -3,6 +3,7 @@ import utils from './utils';
 import {DesktopAgent as fdc3DesktopAgent} from './types/fdc3/DesktopAgent';
 import {Listener as fdc3Listener} from './types/fdc3/Listener';
 import {Channel as fdc3Channel} from './types/fdc3/Channel';
+import {AppInstance as fdc3AppInstance} from './types/fdc3/AppInstance';
 import {Context} from './types/fdc3/Context';
 import {DisplayMetadata} from './types/fdc3/DisplayMetadata';
 import {ContextHandler} from './types/fdc3/ContextHandler';
@@ -104,6 +105,43 @@ class Channel implements fdc3Channel {
     
 }
 
+/**
+ * the AppInstance class
+ */
+class AppInstance implements fdc3AppInstance {
+    instanceId : string;
+    status : 'ready' | 'loading' | 'unregistered';
+
+    constructor(instanceId : string, status : 'ready' | 'loading' | 'unregistered'){
+        this.instanceId = instanceId;
+        this.status = status;
+    }
+
+    addContextListener(handler: ContextHandler ): Listener;
+    addContextListener(contextType: string, handler: ContextHandler): Listener;
+    addContextListener(contextType : any, handler? : any){
+        const thisListener : ContextHandler = arguments.length === 2 ? handler : arguments[0];
+        const thisContextType : string = arguments.length === 2 ? contextType : null;
+        const listenerId : string = utils.guid();
+        _contextListeners.set(listenerId, new ListenerItem(listenerId, thisListener,thisContextType));
+        document.dispatchEvent(utils.fdc3Event(FDC3EventEnum.AddContextListener, {
+                id:listenerId, 
+                instanceId:this.instanceId,
+                contextType:thisContextType
+        }));
+        return new Listener("context", listenerId);
+    }
+
+
+    broadcast(context : Context){
+        wireMethod("broadcast", {context:context,instanceId:this.instanceId}, true);
+    }
+
+    onStatusChanged(handler : (newVal : string, oldVal :string) => {}){
+
+    }
+
+}
 
 
 const wireMethod = (method :string, detail : FDC3EventDetail, config? : any) : Promise <any | null> => {
@@ -225,24 +263,33 @@ class DesktopAgent implements fdc3DesktopAgent {
             return new Channel(r.id,r.type,r.displayMetadata);
         }});
     }
+
+    getAppInstance(instanceId : string) : Promise<AppInstance> {
+        return wireMethod("getAppInstance",{instanceId:instanceId},{resultHandler:(r : any) =>{
+            return new AppInstance(r.instanceId,r.status);
+        }});
+    };
    
  }
 
  document.addEventListener("FDC3:context",(event : FDC3Event) => {
      const listeners = _contextListeners;
      if (event.detail.data.listenerId && listeners.has(event.detail.data.listenerId)){
-        listeners.get(event.detail.data.listenerId).handler.call(this,event.detail.data.context);
+        listeners.get(event.detail.data.listenerId).handler.call(this,event.detail.data.context, event.detail.source);
      }
 
  });
 
  document.addEventListener("FDC3:intent",(event : FDC3Event) => {
     const listeners = _intentListeners.get(event.detail.data.intent);
+    let result = null;
      if (listeners){
         listeners.forEach(l => {
-            l.handler.call(this,event.detail.data.context);
+            l.handler.call(this,event.detail.data.context, event.detail.source);
         });
      }
+     //emit return event
+     document.dispatchEvent(utils.fdc3Event(FDC3EventEnum.IntentComplete, {data:result }));
 });
 
 //map of context listeners by id

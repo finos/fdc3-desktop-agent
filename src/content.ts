@@ -107,7 +107,7 @@ const wireTopic = (topic : string, config?: any) : void => {
 };
  
  //listen for FDC3 events
- const topics = ["open","raiseIntent","addContextListener","addIntentListener","findIntent","findIntentsByContext","getCurrentContext","getSystemChannels","getOrCreateChannel", "getCurrentChannel"];
+ const topics = ["open","raiseIntent","addContextListener","addIntentListener","findIntent","findIntentsByContext","getCurrentContext","getSystemChannels","getOrCreateChannel", "getCurrentChannel", "getAppInstance"];
  topics.forEach(t => {wireTopic(t);});
  //set the custom ones...
  wireTopic("joinChannel",{cb:(e : FDC3Event) => { currentChannel = e.detail.channel;}});
@@ -207,7 +207,7 @@ port.onMessage.addListener(async (msg) => {
             }
             if (!contextSent) {   
                 document.dispatchEvent(new CustomEvent("FDC3:context",{
-                    detail:{data:msg.data}
+                    detail:{data:msg.data, source:msg.source }
                 }));
             }
         }
@@ -229,7 +229,7 @@ port.onMessage.addListener(async (msg) => {
         }
         if (!intentSent){
             document.dispatchEvent(new CustomEvent("FDC3:intent",{
-                detail:{data:msg.data}
+                detail:{data:msg.data, source:msg.source}
             })); 
         }
     }
@@ -280,8 +280,9 @@ let resolver : HTMLElement = null;
         resolver.style.display = "block";
         //resolve the intent name to the display name for the intent - by looking it up in the data response
         let dName : string = null;
+        
         request.data.forEach((item : any )=> {
-            if (!dName && Array.isArray(item.details.directoryData.intents)){
+            if (!dName && item.details.directoryData && Array.isArray(item.details.directoryData.intents)){
                 item.details.directoryData.intents.forEach((intent : any) => {
                     if(intent.name === request.intent){
                         dName = intent.display_name;

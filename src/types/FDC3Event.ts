@@ -30,11 +30,13 @@ export interface FDC3EventDetail {
     intent? : string;
     channel?:string;
     channelId?:string; //resolve w/channel
+    instanceId? : string; //identifier for the app instance
     contextType?:string;
     data ? : any;
     name? : string;
     context? : Context;
     target? : string;
+    source? : string;
 }
 
 
@@ -57,7 +59,8 @@ export enum FDC3EventEnum  {
     GetCurrentChannel = "getCurrentChannel",
     JoinChannel = "joinChannel",
     DropContextListener = "dropContextListener",
-    DropIntentListener = "dropIntentListener"
+    DropIntentListener = "dropIntentListener",
+    IntentComplete = "intentComplete"
  };
 
 /*export {

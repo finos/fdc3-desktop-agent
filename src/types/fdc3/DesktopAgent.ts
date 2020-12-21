@@ -18,6 +18,7 @@ import {Context} from './Context';
 import {IntentResolution} from './IntentResolution';
 import {Channel} from './Channel';
 import {ContextHandler} from './ContextHandler';
+import {AppInstance} from './AppInstance';
 
 export interface DesktopAgent {
     /**
@@ -153,4 +154,6 @@ export interface DesktopAgent {
      * `Error` with a string from the `ChannelError` enumeration.
      */
     getOrCreateChannel(channelId: string): Promise<Channel>;
+
+    getAppInstance(instanceId : string ) : Promise<AppInstance>;
   }
