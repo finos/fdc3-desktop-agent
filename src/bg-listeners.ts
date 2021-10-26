@@ -182,16 +182,25 @@ const getTabChannel = (id : number) : string => {
 
 const open = async (msg : FDC3Message, port : chrome.runtime.Port) => {
     return new Promise(async (resolve, reject) => {
-        const directoryUrl = await utils.getDirectoryUrl();
-        const result = await fetch(`${directoryUrl}/apps/${msg.data.name}`);
+        let start_url = msg.data ? msg.data.start_url : undefined;
         const source = utils.id(port);
-        if (result) {
-            try {
+        if (! start_url){
+            const directoryUrl = await utils.getDirectoryUrl();
+            console.log("open app", `${directoryUrl}/apps/${msg.data.name}`);
+            const result = await fetch(`${directoryUrl}/apps/${msg.data.name}`);
+            
+            if (result) {
                 const r = await result.json();
+                start_url = r.start_url;
+            }
+        }
+        if (start_url) {
+            try {
+             //   const r = await result.json();
                 //todo: get the manifest...
-                if (r && r.start_url){
+               // if (r && r.start_url){
                    
-                    chrome.tabs.create({url:r.start_url},tab =>{
+                    chrome.tabs.create({url:start_url},tab =>{
                         //autojoin the new app to the channel which the 'open' call is sourced from
                         if (msg.data.autojoin){
                             //get channel from current port context
@@ -208,10 +217,8 @@ const open = async (msg : FDC3Message, port : chrome.runtime.Port) => {
                         resolve({result:true, tab:tab.id});
                     });
                     
-                }
-                else {
-                    reject(utils.OpenError.AppNotFound);
-                }
+              //  }
+            //   
         
             }
             catch (err){
@@ -641,19 +648,7 @@ const raiseIntent = async (msg: FDC3Message, port : chrome.runtime.Port) : Promi
                 } else if (r[0].type === "directory"){
                     let start_url = r[0].details.directoryData.start_url;
                     let pending = true;
-                    if (r[0].details.directoryData.hasActions){
-                        const directoryUrl = await utils.getDirectoryUrl();
-                        const rHeaders = new Headers();
-                        rHeaders.append('Content-Type', 'application/json');
-                        const body = {"intent":msg.data.intent,"context":msg.data.context};
-                        const templateR = await fetch(`${directoryUrl}/apps/${r[0].details.directoryData.name}/action`,{headers:rHeaders,method:"POST",body:JSON.stringify(body)});
-                        const action_url = await templateR.text();                     
-                        //if we get a valid action url back, set that as the start and don't post pending data
-                        if (action_url){
-                            start_url = action_url;
-                            pending = false;
-                        }
-                    }
+
                     
                         //let win = window.open(start_url,"_blank");
                         chrome.tabs.create({url:start_url},tab =>{
@@ -758,21 +753,7 @@ const resolveIntent = async (msg : FDC3Message, port : chrome.runtime.Port) : Pr
             let start_url = msg.selected.details.directoryData.start_url;
             let appName = msg.selected.details.directoryData.name;
             let pending = true;
-            //are there actions defined?
-            console.log("hasActions",msg.selected.details.directoryData);
-            if (msg.selected.details.directoryData.hasActions){
-                const directoryUrl = await utils.getDirectoryUrl();
-                const rHeaders = new Headers();
-                rHeaders.append('Content-Type', 'application/json');
-                const body = {"intent":msg.intent,"context":msg.context};
-                const templateR = await fetch(`${directoryUrl}/apps/${appName}/action`,{headers:rHeaders,method:"POST",body:JSON.stringify(body)});
-                const action_url = await templateR.text();
-                //if we get a valid action url back, set that as the start and don't post pending data
-                if (action_url){
-                    start_url = action_url;
-                    pending = false;
-                }
-            }
+
           
                 chrome.tabs.create({url:start_url},tab =>{
                     //set pending intent for the tab...

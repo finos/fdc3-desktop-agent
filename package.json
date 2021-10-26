@@ -1,6 +1,6 @@
 {
   "name": "desktop-agent",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Chrome Extension implementation of the FDC3 desktop interoperability standards",
   "scripts": {
     "build": "webpack"

@@ -125,20 +125,6 @@ chrome.runtime.onConnect.addListener( async (port : chrome.runtime.Port) => {
     }
         
 
-    if (match !== null && match.hasActions){
-            
-        //if the app has actions defined in the appD, look those up (this is an extension of appD implemented by appd.kolbito.com) 
-        //actions automate wiring context and intent handlers for apps with gettable end-points
-            console.log("hasActions");
-            let actionsR = await fetch(`${directoryUrl}/apps/${match.name}/actions`);
-
-            let actions = await actionsR.json();
-            if (actions){
-                match.actions = actions;
-
-            }
-    }
-        
     utils.setConnected({id: app_id, port:port, directoryData:match});
     await listeners.applyPendingChannel(port);
     

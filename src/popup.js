@@ -59,7 +59,7 @@ new autoComplete({
         document.querySelector("#result_list").appendChild(result);
     },
     onSelection: feedback => {             // Action script onSelection event | (Optional)
-        const selection = feedback.selection.value.name;
+        const selection = feedback.selection.value;
        // console.log(feedback.selection.value.title);
         // Render selected choice to selection div
 		//document.querySelector(".selection").innerHTML = selection;
@@ -72,7 +72,7 @@ new autoComplete({
             chrome.tabs.query({active:true, currentWindow:true},tab => {
                 chrome.tabs.sendMessage(tab[0].id, {
                     message:"popup-open",
-                    name:selection
+                    selection:selection
                 });
             });
             
