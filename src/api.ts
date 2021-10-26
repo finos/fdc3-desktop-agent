@@ -292,14 +292,17 @@ class DesktopAgent implements fdc3DesktopAgent {
      document.dispatchEvent(utils.fdc3Event(FDC3EventEnum.IntentComplete, {data:result }));
 });
 
-//map of context listeners by id
-const _contextListeners : Map<string, ListenerItem> = new Map();
+    //map of context listeners by id
+    const _contextListeners : Map<string, ListenerItem> = new Map();
 
-//map of intents holding map of listeners for each intent
-const _intentListeners: Map<string, Map<string, ListenerItem>> = new Map();
+    //map of intents holding map of listeners for each intent
+    const _intentListeners: Map<string, Map<string, ListenerItem>> = new Map();
 
-(window as any)["fdc3"] = new DesktopAgent();
-
+    (window as any)["fdc3"] = new DesktopAgent();
+    document.addEventListener("DOMContentLoaded",() => {
+        document.dispatchEvent(new CustomEvent('fdc3Ready', {}));
+    });
+    
 };
 
 _doFdc3();
