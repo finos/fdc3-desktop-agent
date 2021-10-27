@@ -9,7 +9,7 @@ import {DisplayMetadata} from './types/fdc3/DisplayMetadata';
 import {ContextHandler} from './types/fdc3/ContextHandler';
 import {TargetApp} from './types/fdc3/Types';
 import {FDC3Event, FDC3EventDetail, FDC3EventEnum} from './types/FDC3Event';
-import { AppMetadata } from './types/fdc3/AppMetadata';
+import { ImplementationMetadata } from './types/fdc3/ImplementationMetadata';
 
 
 /**
@@ -269,6 +269,13 @@ class DesktopAgent implements fdc3DesktopAgent {
             return new AppInstance(r.instanceId,r.status);
         }});
     };
+
+    getInfo() : ImplementationMetadata {
+        return {
+            fdc3Version:"1.2",
+            provider:"FINOS"
+        };
+    }
    
  }
 

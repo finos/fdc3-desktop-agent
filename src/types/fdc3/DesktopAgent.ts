@@ -19,7 +19,7 @@ import {IntentResolution} from './IntentResolution';
 import {Channel} from './Channel';
 import {ContextHandler} from './ContextHandler';
 import {AppInstance} from './AppInstance';
-import { AppMetadata } from './AppMetadata';
+import {ImplementationMetadata } from './ImplementationMetadata';
 import {TargetApp} from './Types';
 
 export interface DesktopAgent {
@@ -166,4 +166,11 @@ export interface DesktopAgent {
     getOrCreateChannel(channelId: string): Promise<Channel>;
 
     getAppInstance(instanceId : string ) : Promise<AppInstance>;
+
+     /**
+     * Retrieves information about the FDC3 Desktop Agent implementation, such as
+     * the implemented version of the FDC3 specification and the name of the implementation
+     * provider.
+     */
+      getInfo(): ImplementationMetadata;
   }
