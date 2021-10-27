@@ -3,8 +3,7 @@
  */
 
 import utils from './utils';
-import systemChannels from './system-channels';
-import {IntentResolution} from './types/fdc3/IntentResolution';
+import {TargetApp} from './types/fdc3/Types';
 import {AppIntent} from './types/fdc3/AppIntent';
 import {AppMetadata} from './types/fdc3/AppMetadata';
 import { Context } from "./types/fdc3/Context";
@@ -183,11 +182,17 @@ const getTabChannel = (id : number) : string => {
 const open = async (msg : FDC3Message, port : chrome.runtime.Port) => {
     return new Promise(async (resolve, reject) => {
         let start_url = msg.data ? msg.data.start_url : undefined;
+        const target : TargetApp = msg.data.target;
+        const name : String =  typeof(target) === "string" ? target : (target as AppMetadata).name; 
         const source = utils.id(port);
+        /**
+         * To DO: Determine any future handling for AppMetadata in looking up an app
+         * 
+         */
         if (! start_url){
             const directoryUrl = await utils.getDirectoryUrl();
-            console.log("open app", `${directoryUrl}/apps/${msg.data.name}`);
-            const result = await fetch(`${directoryUrl}/apps/${msg.data.name}`);
+            console.log("open app", `${directoryUrl}/apps/${name}`);
+            const result = await fetch(`${directoryUrl}/apps/${name}`);
             
             if (result) {
                 const r = await result.json();
@@ -611,8 +616,13 @@ const raiseIntent = async (msg: FDC3Message, port : chrome.runtime.Port) : Promi
         if (msg.data.context){
             ctx = msg.data.context.type;
         }
+        /**
+         * To Do: Support additional AppMetadata searching (other than name)
+         */
+        const target : TargetApp = msg.data.target;
+        const name : String  =  target ? (typeof(target) === "string" ? target : (target as AppMetadata).name) : ""; 
         const directoryUrl = await utils.getDirectoryUrl();
-        const _r = await fetch(`${directoryUrl}/apps/search?intent=${msg.data.intent}&context=${ctx}&name=${msg.data.target ? msg.data.target : ""}`);
+        const _r = await fetch(`${directoryUrl}/apps/search?intent=${msg.data.intent}&context=${ctx}&name=${name}`);
         if (_r){ 
             let data = null;
             try {
@@ -976,7 +986,7 @@ const findIntent = async (msg : FDC3Message, port : chrome.runtime.Port) : Promi
                 r.apps.push({name:dirApp.name, 
                         title:dirApp.title,
                         description:dirApp.description,
-                        icons:dirApp.icons.map((icon) => {return icon.icon;})});
+                        icons:dirApp.icons.map((icon) => {return icon;})});
             });
             resolve(r);
             
@@ -1021,7 +1031,7 @@ const findIntentsByContext = async (msg : FDC3Message, port : chrome.runtime.Por
                     const appMeta : AppMetadata = {name:item.name, 
                         title:item.title,
                         description:item.description,
-                        icons:item.icons.map((icon) => {return icon.icon;})};
+                        icons:item.icons.map((icon) => {return icon;})};
 
                     item.intents.forEach(intent => {
                         if (!found.has(intent.name)){

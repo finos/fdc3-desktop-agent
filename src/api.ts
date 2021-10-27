@@ -7,9 +7,9 @@ import {AppInstance as fdc3AppInstance} from './types/fdc3/AppInstance';
 import {Context} from './types/fdc3/Context';
 import {DisplayMetadata} from './types/fdc3/DisplayMetadata';
 import {ContextHandler} from './types/fdc3/ContextHandler';
-import { IntentResolution } from './types/fdc3/IntentResolution';
-import {AppIntent} from './types/fdc3/AppIntent';
+import {TargetApp} from './types/fdc3/Types';
 import {FDC3Event, FDC3EventDetail, FDC3EventEnum} from './types/FDC3Event';
+import { AppMetadata } from './types/fdc3/AppMetadata';
 
 
 /**
@@ -180,8 +180,8 @@ class DesktopAgent implements fdc3DesktopAgent {
 
     }
 
-    open(name : string, context? : Context)  {
-        return wireMethod("open", {name:name, context:context});
+    open(target : TargetApp, context? : Context)  {
+        return wireMethod("open", {target:target, context:context});
     }
 
     broadcast(context : Context) {
@@ -189,7 +189,7 @@ class DesktopAgent implements fdc3DesktopAgent {
         wireMethod("broadcast", {context:context}, {void:true});
     }
 
-    raiseIntent(intent : string, context : Context, target : string)  {
+    raiseIntent(intent : string, context : Context, target : TargetApp)  {
        return wireMethod("raiseIntent",{intent:intent, context:context, target: target});
     }
 

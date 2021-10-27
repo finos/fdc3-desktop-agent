@@ -19,10 +19,12 @@ import {IntentResolution} from './IntentResolution';
 import {Channel} from './Channel';
 import {ContextHandler} from './ContextHandler';
 import {AppInstance} from './AppInstance';
+import { AppMetadata } from './AppMetadata';
+import {TargetApp} from './Types';
 
 export interface DesktopAgent {
     /**
-     * Launches an app by name.
+     * Launches an app by name or by metadata
      * 
      * If a Context object is passed in, this object will be provided to the opened application via a contextListener.
      * The Context argument is functionally equivalent to opening the target app with no context and broadcasting the context directly to it.
@@ -34,9 +36,17 @@ export interface DesktopAgent {
      *     agent.open('myApp');
      *     //with context
      *     agent.open('myApp', context);
+     *     //with metadata
+     *     const target: TargetApp = {
+     *        name: 'MyApp',
+     *        version: '2.5'
+     *     }
+     *
+     *     await fdc3.open(target)
+     *     
      * ```
      */
-    open(name: string, context?: Context): Promise<void>;
+    open(target: TargetApp, context?: Context): Promise<void>;
   
     /**
      * Find out more information about a particular intent by passing its name, and optionally its context.
@@ -115,7 +125,7 @@ export interface DesktopAgent {
      * agent.raiseIntent("StartChat", newContext, intentR.source);
      * ```
      */
-    raiseIntent(intent: string, context: Context, target?: string): Promise<IntentResolution>;
+    raiseIntent(intent: string, context: Context, target?: TargetApp): Promise<IntentResolution>;
   
     /**
      * Adds a listener for incoming Intents from the Agent.
