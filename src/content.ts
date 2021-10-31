@@ -5,15 +5,12 @@
  *  - rendering the intent resolver UI
  *  
  */
-import channels from "./system-channels";
 import utils from "./utils";
-import {Listener as fdc3Listener, Listener} from './types/fdc3/Listener';
 import {FDC3Event} from './types/FDC3Event';
 import {FDC3Message} from './types/FDC3Message';
-import {IntentMetadata} from './types/fdc3/IntentMetadata';
-import {AppIntent} from './types/fdc3/AppIntent';
-import {Context} from './types/fdc3/Context';
 import {AppInstance, InstanceTypeEnum} from './types/AppInstance';
+import {IntentInstance} from './types/IntentInstance';
+import { FDC3App } from "./types/FDC3Data";
 
 
 //establish comms with the background script 
@@ -106,7 +103,7 @@ const wireTopic = (topic : string, config?: any) : void => {
 };
  
  //listen for FDC3 events
- const topics = ["open","raiseIntent","addContextListener","addIntentListener","findIntent","findIntentsByContext","getCurrentContext","getSystemChannels","getOrCreateChannel", "getCurrentChannel", "getAppInstance"];
+ const topics = ["open","raiseIntent","raiseIntentForContext","addContextListener","addIntentListener","findIntent","findIntentsByContext","getCurrentContext","getSystemChannels","getOrCreateChannel", "getCurrentChannel", "getAppInstance"];
  topics.forEach(t => {wireTopic(t);});
  //set the custom ones...
  wireTopic("joinChannel",{cb:(e : FDC3Event) => { currentChannel = e.detail.channel;}});
@@ -191,6 +188,81 @@ let resolver : HTMLElement = null;
     }
 });
 
+/**
+ * generate app item row for resolver UI
+ * - title of app
+ *  - exact title for live instance
+ * - indicator if live or directory
+ * - icon
+ * - handler to launch (with context & intent)
+ * 
+ */
+const createAppRow = (item : FDC3App, list : Element, eventId : string, intent : string, context : any) : void => {
+    const selected = item;
+    const tab : chrome.tabs.Tab = item.details && item.details.port ? item.details.port.sender.tab : null;
+    const data = item.details.directoryData ? item.details.directoryData : null;
+    const rItem : Element = document.createElement("div");
+
+    rItem.className = "item";
+    const title = data ? data.title : "Untitled";
+    const iconNode : Element = document.createElement("img");
+    iconNode.className = "icon";
+    rItem.appendChild(iconNode);
+    const titleNode : Element = document.createElement("span");
+    rItem.appendChild(titleNode);
+    //title should reflect if this is creating a new window, or loading to an existing one
+    if (item.type === InstanceTypeEnum.Window){
+        
+    // let icon = document.createElement("img");
+    // icon.className = "icon"; 
+        if (tab.favIconUrl){
+            iconNode.setAttribute("src", tab.favIconUrl);
+        }
+        //rItem.appendChild(icon);
+        //titleNode = document.createElement("span");
+        titleNode.id = "title-" + tab.id;
+        titleNode.textContent = title;
+        titleNode.setAttribute("title", `${title} (${tab.url})`);
+        const query : string = "#title-" + tab.id;
+        
+        //async get the window title
+        getTabTitle(tab.id).then((t : string )=> { 
+            let titles =  list.querySelectorAll(query);
+            if (titles.length > 0 && t.length > 0){
+                titles[0].textContent = t;
+                titles[0].setAttribute("title",`${t} (${tab.url})`);
+            }
+        });
+    }
+    else {
+        if (data && data.icons && data.icons.length > 0){
+            iconNode.setAttribute("src", data.icons[0].icon);
+        }
+    }
+    if (titleNode){
+        if (titleNode.textContent.length === 0){
+            titleNode.textContent = title;
+        }
+        if (titleNode.getAttribute("title") === null || titleNode.getAttribute("title").length === 0){
+            titleNode.setAttribute("title",(data ? data.start_url : (tab ? tab.title : "Untitled")));
+        }
+        
+    }
+    rItem.addEventListener("click",evt => {
+
+        //send resolution message to extension to route
+        port.postMessage({
+            topic:eventId,
+            intent:intent,
+            selected:selected,
+            context:context
+        }); 
+        list.innerHTML = "";
+        resolver.style.display = "none";
+    });
+
+    list.appendChild(rItem);
+};
  
  //handle click on extension button
  //raise directory search overlay
@@ -210,97 +282,68 @@ let resolver : HTMLElement = null;
         else if (request.message === "popup-open"){
             port.postMessage({topic:"open", "data": {name:request.selection.name, start_url: request.selection.start_url, autojoin:true}}); 
         }
-  
-      else if (request.message === "intent_resolver"){
-        if (! resolver){
-            resolver = createResolverRoot();
-            document.body.appendChild(resolver);
-        }
-        resolver.style.display = "block";
-        //resolve the intent name to the display name for the intent - by looking it up in the data response
-        let dName : string = null;
-        
-        request.data.forEach((item : any )=> {
-            if (!dName && item.details.directoryData && Array.isArray(item.details.directoryData.intents)){
-                item.details.directoryData.intents.forEach((intent : any) => {
-                    if(intent.name === request.intent){
-                        dName = intent.display_name;
-                    }
-                });
-            }
-        } );
-        const header : Element = resolver.shadowRoot.querySelectorAll("#resolve-header")[0];
-        header.textContent = `Intent '${(dName ? dName : request.intent)}'`;
-        let list = resolver.shadowRoot.querySelectorAll("#resolve-list")[0];
-        list.innerHTML = "";
 
-        //contents
-        //item represents an app...
-        request.data.forEach((item : AppInstance) => {
-            const selected = item;
-            const tab : chrome.tabs.Tab = item.details && item.details.port ? item.details.port.sender.tab : null;
-            const data = item.details.directoryData ? item.details.directoryData : null;
-            const rItem : Element = document.createElement("div");
+        //resolve intents by context
+        else if (request.message === "context_resolver"){
+            if (! resolver){
+                resolver = createResolverRoot();
+                document.body.appendChild(resolver);
+            }
+            resolver.style.display = "block";
+            const list = resolver.shadowRoot.querySelectorAll("#resolve-list")[0];
+            list.innerHTML = "";
+            const header : Element = resolver.shadowRoot.querySelectorAll("#resolve-header")[0];
+            header.textContent = `Resolving Context '${request.context.type}'`;
 
-            rItem.className = "item";
-            const title = data ? data.title : "Untitled";
-            const iconNode : Element = document.createElement("img");
-            iconNode.className = "icon";
-            rItem.appendChild(iconNode);
-            const titleNode : Element = document.createElement("span");
-            rItem.appendChild(titleNode);
-            //title should reflect if this is creating a new window, or loading to an existing one
-            if (item.type === InstanceTypeEnum.Window){
-                
-               // let icon = document.createElement("img");
-               // icon.className = "icon"; 
-                if (tab.favIconUrl){
-                    iconNode.setAttribute("src", tab.favIconUrl);
-                }
-                //rItem.appendChild(icon);
-                //titleNode = document.createElement("span");
-                titleNode.id = "title-" + tab.id;
-                titleNode.textContent = title;
-                titleNode.setAttribute("title", `${title} (${tab.url})`);
-                const query : string = "#title-" + tab.id;
-                
-                //async get the window title
-                getTabTitle(tab.id).then((t : string )=> { 
-                    let titles =  list.querySelectorAll(query);
-                    if (titles.length > 0 && t.length > 0){
-                        titles[0].textContent = t;
-                        titles[0].setAttribute("title",`${t} (${tab.url})`);
-                    }
+            request.data.forEach((item : IntentInstance) => {
+                const intentRow = document.createElement("div");
+                intentRow.className = "intentRow";
+                const intentTitle = document.createElement("div");
+                intentTitle.className = "intentTitle";
+                intentTitle.textContent = item.intent.displayName;
+                intentRow.appendChild(intentTitle);
+                const appList = document.createElement("div");
+                appList.className = "appList";
+                item.apps.forEach((app : FDC3App) => {
+                    createAppRow(app, appList, request.eventId, item.intent.name, request.context);
+
                 });
-            }
-            else {
-                if (data && data.icons && data.icons.length > 0){
-                    iconNode.setAttribute("src", data.icons[0].icon);
-                }
-            }
-            if (titleNode){
-                if (titleNode.textContent.length === 0){
-                    titleNode.textContent = title;
-                }
-                if (titleNode.getAttribute("title") === null || titleNode.getAttribute("title").length === 0){
-                    titleNode.setAttribute("title",(data ? data.start_url : (tab ? tab.title : "Untitled")));
-                }
-                
-            }
-            rItem.addEventListener("click",evt => {
-                //send resolution message to extension to route
-                port.postMessage({
-                    topic:request.eventId,
-                    intent:request.intent,
-                    selected:selected,
-                    context:request.context
-                }); 
-                list.innerHTML = "";
-                resolver.style.display = "none";
+                intentRow.appendChild(appList);
+                //    <div class='intentTitle'  onClick={ (event: MouseEvent) => this.intentClick(event)}>{item.intent.displayName} </div>
+                list.appendChild(intentRow);
             });
-            list.appendChild(rItem);
-        });
-      }
+        }
+        
+        //resolve by a single intent
+        else if (request.message === "intent_resolver"){
+            if (! resolver){
+                resolver = createResolverRoot();
+                document.body.appendChild(resolver);
+            }
+            resolver.style.display = "block";
+            //resolve the intent name to the display name for the intent - by looking it up in the data response
+            let dName : string = null;
+            
+            request.data.forEach((item : any )=> {
+                if (!dName && item.details.directoryData && Array.isArray(item.details.directoryData.intents)){
+                    item.details.directoryData.intents.forEach((intent : any) => {
+                        if(intent.name === request.intent){
+                            dName = intent.display_name;
+                        }
+                    });
+                }
+            } );
+            const header : Element = resolver.shadowRoot.querySelectorAll("#resolve-header")[0];
+            header.textContent = `Resolving Intent '${(dName ? dName : request.intent)}'`;
+            const list = resolver.shadowRoot.querySelectorAll("#resolve-list")[0];
+            list.innerHTML = "";
+
+            //contents
+            //item represents an app...
+            request.data.forEach((item : AppInstance) => {
+                createAppRow(item, list, request.eventId, request.intent, request.context);
+            });
+        }
 
     }
     
@@ -327,18 +370,18 @@ let resolver : HTMLElement = null;
             margin-top:-200px;
             left:50%;
             top:50%;
-            background-color:#444;
+            background-color:#eee;
             position:absolute;
             z-index:9999;
             font-family:sans-serif;
-            filter: drop-shadow(6px 4px 1px #969696);
+            filter: drop-shadow(2px 1px .5px #969696);
             border-radius: 10px;
    
         }
 
         #resolve-header {
             height:25px;
-            color:#eee;
+            color:#222;
             font-size: 18px;
             width: 100%;
             text-align: center;
@@ -347,7 +390,7 @@ let resolver : HTMLElement = null;
         
         #resolve-subheader {
             height:20px;
-            color:#eee;
+            color:#222;
             font-size: 16px;
             width: 100%;
             text-align: center;
@@ -355,32 +398,79 @@ let resolver : HTMLElement = null;
         #resolve-list {
             height:300px;
             overflow:scroll;
-            margin:10px;
-            font-size:14px;
-            border-radius: 3px;
-            margin: 3px;
-            border: #333;
-            background-color: #555;
+            font-size:1.1rem;
+            background-color: #eee;
         }
         
         #resolve-list .item {
-            color:#fff;
+            color:#111;
             flexFlow:row;
-            height:20px;
-            padding:3px;
+            height:1.3rem;
+            padding:.3rem;
             overflow:hidden;
         }
 
 
         #resolve-list .item .icon {
-           height:20px;
-           padding-right:3px;
+            margin-right: .3rem;
+            height: 1rem;
+            border: solid 1px #eee;
         }
         
         #resolve-list .item:hover {
-            background-color:#999;
-            color:#ccc;
+            background-color:#36a;
+            color:#eee;
             cursor: pointer;
+        }
+
+        .intentRow {
+            padding-top:.6rem;
+            padding-bottom:.6rem;
+        }
+        
+        .intentTitle {
+            font-size:.9rem;
+            padding-left:.3rem;
+            color:#333;
+            padding-bottom: .1rem;
+            border-bottom:.5px solid #bbb;
+            transition: all 0.2s ease-in;
+        }
+        
+        .intentTitle:hover {
+            cursor: pointer;
+            color: #444;
+            transition: all 0.2s ease-in;
+        }
+        
+        .appRow {
+            display: flex;
+            flex-flow: row;
+        }
+        
+        
+        .appRow:hover {
+            cursor: pointer;
+            color: #222;
+            transition: all 0.2s ease-in;
+        }
+        
+        .appRow:hover img {
+            opacity:.6;
+            transition: all 0.2s ease-in;
+        }
+        
+        .appTitle {
+            font-size:.8rem;
+        }
+        
+        
+        .appIcon img {
+            height:1rem;
+            margin-right:.3rem;
+            opacity:1;
+            transition: all 0.2s ease-in;
+            
         }
         `;
         const header : HTMLElement = document.createElement('div');

@@ -193,6 +193,10 @@ class DesktopAgent implements fdc3DesktopAgent {
        return wireMethod("raiseIntent",{intent:intent, context:context, target: target});
     }
 
+    raiseIntentForContext(context : Context, target? : TargetApp)  {
+        return wireMethod("raiseIntentForContext",{context:context, target: target});
+     }
+
     addContextListener(handler: ContextHandler ): Listener;
     addContextListener(contextType: string, handler: ContextHandler): Listener;
     addContextListener(contextType:any, handler? : any) {
