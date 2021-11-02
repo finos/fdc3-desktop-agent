@@ -205,9 +205,19 @@ const createAppRow = (item : FDC3App, list : Element, eventId : string, intent :
 
     rItem.className = "item";
     const title = data ? data.title : "Untitled";
+    const iconContainer  = document.createElement("span");
+    iconContainer.className = "icon-container";
+    //place a 'new window' icon?
+    if (item.type === InstanceTypeEnum.Directory){
+        const newIcon : HTMLElement = document.createElement("img");
+        newIcon.className = "icon new";
+      //  newIcon.title = "New Instance";
+        iconContainer.appendChild(newIcon);
+    }
     const iconNode : Element = document.createElement("img");
     iconNode.className = "icon";
-    rItem.appendChild(iconNode);
+    iconContainer.appendChild(iconNode);
+    rItem.appendChild(iconContainer);
     const titleNode : Element = document.createElement("span");
     rItem.appendChild(titleNode);
     //title should reflect if this is creating a new window, or loading to an existing one
@@ -292,7 +302,7 @@ const createAppRow = (item : FDC3App, list : Element, eventId : string, intent :
             resolver.style.display = "block";
             const list = resolver.shadowRoot.querySelectorAll("#resolve-list")[0];
             list.innerHTML = "";
-            const header : Element = resolver.shadowRoot.querySelectorAll("#resolve-header")[0];
+            const header : Element = resolver.shadowRoot.querySelectorAll("#resolve-header .header-text")[0];
             header.textContent = `Resolving Context '${request.context.type}'`;
 
             request.data.forEach((item : IntentInstance) => {
@@ -333,7 +343,7 @@ const createAppRow = (item : FDC3App, list : Element, eventId : string, intent :
                     });
                 }
             } );
-            const header : Element = resolver.shadowRoot.querySelectorAll("#resolve-header")[0];
+            const header : Element = resolver.shadowRoot.querySelectorAll("#resolve-header .header-text")[0];
             header.textContent = `Resolving Intent '${(dName ? dName : request.intent)}'`;
             const list = resolver.shadowRoot.querySelectorAll("#resolve-list")[0];
             list.innerHTML = "";
@@ -350,12 +360,17 @@ const createAppRow = (item : FDC3App, list : Element, eventId : string, intent :
   );
 
   function createResolverRoot() : HTMLElement{
- 
+        
         // Create root element
         const root : HTMLElement= document.createElement('div');
         const wrapper : HTMLElement = document.createElement('div');
         wrapper.id = "fdc3-intent-resolver";
 
+        //cancel any click bubbling, so that a click on the resolver doesn't close it
+        root.addEventListener("click",(event : MouseEvent) => {
+            event.cancelBubble = true;
+            event.stopPropagation();
+        });
          // Create a shadow root
          const shadow : ShadowRoot = root.attachShadow({mode: 'open'});
 
@@ -374,26 +389,28 @@ const createAppRow = (item : FDC3App, list : Element, eventId : string, intent :
             position:absolute;
             z-index:9999;
             font-family:sans-serif;
-            filter: drop-shadow(2px 1px .5px #969696);
+            filter: drop-shadow(2px 1px 1px #969696);
             border-radius: 10px;
+            border:1px solid #fff;
    
         }
 
-        #resolve-header {
-            height:25px;
-            color:#222;
-            font-size: 18px;
+        #resolve-header {   
+            color:#eee;
+            font-size: 1.3rem;
             width: 100%;
             text-align: center;
-            padding-top: 10px;
+            padding-top: .6rem;
+            padding-bottom:.6rem;
+            background: linear-gradient(to bottom, #333, #ccc);
+            border-radius: 10px 10px 0px 0px;
         }
         
-        #resolve-subheader {
-            height:20px;
-            color:#222;
-            font-size: 16px;
+        #resolve-subheader {          
+            font-size: 1rem;
             width: 100%;
             text-align: center;
+            color:#fff;
         }
         #resolve-list {
             height:300px;
@@ -407,20 +424,42 @@ const createAppRow = (item : FDC3App, list : Element, eventId : string, intent :
             flexFlow:row;
             height:1.3rem;
             padding:.3rem;
+            padding-left:.6rem;
             overflow:hidden;
         }
 
+        #resolve-list .item .icon-container img {
+            margin-right: .3rem;
+            height: 1rem;
+            border: solid 1px #cce;
+        }
 
         #resolve-list .item .icon {
             margin-right: .3rem;
             height: 1rem;
-            border: solid 1px #eee;
+            border: solid 1px #cce;
         }
         
+
+        #resolve-list .item .icon.new {
+            background-image: url('${chrome.extension.getURL('new.png')}');
+            width:1rem;
+            height:1rem;
+            background-repeat: no-repeat;
+            background-size: 1rem;
+            border:0px;
+
+        }
+        
+        #resolve-list .item:hover .icon.new{
+            background-image: url('${chrome.extension.getURL('new-white.png')}');
+        }
+
         #resolve-list .item:hover {
             background-color:#36a;
             color:#eee;
             cursor: pointer;
+            transition: all 0.2s ease-in;
         }
 
         .intentRow {
@@ -443,43 +482,22 @@ const createAppRow = (item : FDC3App, list : Element, eventId : string, intent :
             transition: all 0.2s ease-in;
         }
         
-        .appRow {
-            display: flex;
-            flex-flow: row;
-        }
-        
-        
-        .appRow:hover {
-            cursor: pointer;
-            color: #222;
-            transition: all 0.2s ease-in;
-        }
-        
-        .appRow:hover img {
-            opacity:.6;
-            transition: all 0.2s ease-in;
-        }
-        
-        .appTitle {
-            font-size:.8rem;
-        }
-        
-        
-        .appIcon img {
-            height:1rem;
-            margin-right:.3rem;
-            opacity:1;
-            transition: all 0.2s ease-in;
-            
-        }
+  
+
         `;
         const header : HTMLElement = document.createElement('div');
         header.id = "resolve-header";
-        wrapper.appendChild(header);
+        const headerText : HTMLElement = document.createElement('span');
+        headerText.className = "header-text";
+        header.appendChild(headerText);
+       
+
         const subheader : HTMLElement = document.createElement('div');
         subheader.id = "resolve-subheader";
         subheader.textContent = "choose an app";
-        wrapper.appendChild(subheader);
+        header.appendChild(subheader);
+        wrapper.appendChild(header);
+        
         const list : HTMLElement = document.createElement('div');
         list.id = "resolve-list";
         wrapper.appendChild(list);
@@ -492,10 +510,21 @@ const createAppRow = (item : FDC3App, list : Element, eventId : string, intent :
       
         return root;
     }
-  
+  //add click handler to close the resolver
+  document.addEventListener("DOMContentLoaded", () => {
+    document.addEventListener("click", (event : MouseEvent) => {
+        port.postMessage({topic:"resolver-close"});   
+        if (resolver){
+            resolver.style.display = "none";
+        }
+    });
+  });
+ 
 
   //inject the FDC3 API
   const s : Element = document.createElement('script');
   s.setAttribute("src", chrome.extension.getURL('api.js'));
+
+  
   
   (document.head||document.documentElement).appendChild(s);
