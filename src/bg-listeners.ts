@@ -230,9 +230,10 @@ const getTabChannel = (id : number) : string => {
 
 const open = async (msg : FDC3Message, port : chrome.runtime.Port) => {
     return new Promise(async (resolve, reject) => {
+        console.log("open", msg);
         let start_url = msg.data ? msg.data.start_url : undefined;
         const target : TargetApp = msg.data.target;
-        const name : String =  typeof(target) === "string" ? target : (target as AppMetadata).name; 
+        const name : String =  target && typeof(target) === "string" ? target : target ? (target as AppMetadata).name : undefined; 
         const source = utils.id(port);
         /**
          * To DO: Determine any future handling for AppMetadata in looking up an app
