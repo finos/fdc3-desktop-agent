@@ -7,9 +7,9 @@ import {AppInstance as fdc3AppInstance} from './types/fdc3/AppInstance';
 import {Context} from './types/fdc3/Context';
 import {DisplayMetadata} from './types/fdc3/DisplayMetadata';
 import {ContextHandler} from './types/fdc3/ContextHandler';
-import { IntentResolution } from './types/fdc3/IntentResolution';
-import {AppIntent} from './types/fdc3/AppIntent';
+import {TargetApp} from './types/fdc3/Types';
 import {FDC3Event, FDC3EventDetail, FDC3EventEnum} from './types/FDC3Event';
+import { ImplementationMetadata } from './types/fdc3/ImplementationMetadata';
 
 
 /**
@@ -180,8 +180,8 @@ class DesktopAgent implements fdc3DesktopAgent {
 
     }
 
-    open(name : string, context? : Context)  {
-        return wireMethod("open", {name:name, context:context});
+    open(target : TargetApp, context? : Context)  {
+        return wireMethod("open", {target:target, context:context});
     }
 
     broadcast(context : Context) {
@@ -189,9 +189,13 @@ class DesktopAgent implements fdc3DesktopAgent {
         wireMethod("broadcast", {context:context}, {void:true});
     }
 
-    raiseIntent(intent : string, context : Context, target : string)  {
+    raiseIntent(intent : string, context : Context, target : TargetApp)  {
        return wireMethod("raiseIntent",{intent:intent, context:context, target: target});
     }
+
+    raiseIntentForContext(context : Context, target? : TargetApp)  {
+        return wireMethod("raiseIntentForContext",{context:context, target: target});
+     }
 
     addContextListener(handler: ContextHandler ): Listener;
     addContextListener(contextType: string, handler: ContextHandler): Listener;
@@ -269,6 +273,13 @@ class DesktopAgent implements fdc3DesktopAgent {
             return new AppInstance(r.instanceId,r.status);
         }});
     };
+
+    getInfo() : ImplementationMetadata {
+        return {
+            fdc3Version:"1.2",
+            provider:"FINOS"
+        };
+    }
    
  }
 
@@ -292,14 +303,17 @@ class DesktopAgent implements fdc3DesktopAgent {
      document.dispatchEvent(utils.fdc3Event(FDC3EventEnum.IntentComplete, {data:result }));
 });
 
-//map of context listeners by id
-const _contextListeners : Map<string, ListenerItem> = new Map();
+    //map of context listeners by id
+    const _contextListeners : Map<string, ListenerItem> = new Map();
 
-//map of intents holding map of listeners for each intent
-const _intentListeners: Map<string, Map<string, ListenerItem>> = new Map();
+    //map of intents holding map of listeners for each intent
+    const _intentListeners: Map<string, Map<string, ListenerItem>> = new Map();
 
-(window as any)["fdc3"] = new DesktopAgent();
-
+    (window as any)["fdc3"] = new DesktopAgent();
+    document.addEventListener("DOMContentLoaded",() => {
+        document.dispatchEvent(new CustomEvent('fdc3Ready', {}));
+    });
+    
 };
 
 _doFdc3();

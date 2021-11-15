@@ -3,14 +3,15 @@
  */
 
 import utils from './utils';
-import systemChannels from './system-channels';
-import {IntentResolution} from './types/fdc3/IntentResolution';
+import {TargetApp} from './types/fdc3/Types';
 import {AppIntent} from './types/fdc3/AppIntent';
 import {AppMetadata} from './types/fdc3/AppMetadata';
 import { Context } from "./types/fdc3/Context";
 import { FDC3Message } from "./types/FDC3Message";
-import {DirectoryApp, DirectoryIntent, Channel, FDC3App, FDC3AppDetail} from './types/FDC3Data';
+import {IntentInstance} from './types/IntentInstance';
+import {DirectoryApp, DirectoryIntent, Channel, FDC3App, FDC3AppDetail, ConnectedApp} from './types/FDC3Data';
 import { IntentMetadata } from './types/fdc3/IntentMetadata';
+import { AppInstance } from './types/AppInstance';
 
 /**
  * reperesents a pending event to be passed to an app once it is loaded
@@ -136,6 +137,53 @@ const setIntentListener = (intent : string, listenerId : string, appId : string)
     intentListeners.get(intent).set(listenerId, {appId:appId, listenerId:listenerId}); 
 };
 
+/**
+ * 
+ * @param context - context type
+ * @param target  - app identifier
+ * 
+ * Returns a map of all active intent listeners for a specific context type
+ */
+const getIntentListenersByContext = (context : string, target? : string) : Map<string,Array<ConnectedApp>> => {
+    const result : Map<string, Array<ConnectedApp>> =  new Map();
+    
+    //iterate through all registered apps
+    //match on context for the intents for the entry
+    utils.getAllConnected().forEach((item : ConnectedApp) => {
+        const entry = item.directoryData;
+        if (entry && entry.intents){
+            //iterate through the inents
+            entry.intents.forEach(entryIntent => {
+                const intent = entryIntent.name;
+                if (entryIntent.contexts.indexOf(context) > -1){
+                    if (!result.has(intent)){
+                        result.set(intent, []);
+                    }
+                    result.get(intent).push(item)
+                }
+
+            });
+        }
+    });
+    /*
+    intentListeners.forEach((listeners : Map<string, Listener>, value : string) => {
+        const intent: string = value;
+        const listenerArray : Array<Listener> = [];
+        console.log("getIntentListenersByContext",context, target);
+        listeners.forEach((listener, key) => {
+            console.log("listener", listener);
+            const entry = utils.getConnected(listener.appId).directoryData;
+            console.log("entry", entry);
+            //we need the entry to match on context
+
+        } );
+        result.set(intent, listenerArray);
+
+        }); */   
+    
+    return result;
+
+};
 
 const getIntentListeners = (intent : string, target? : string) : Map<string,Listener> => {
     const result : Map<string, Listener> = intentListeners.get(intent);
@@ -182,16 +230,32 @@ const getTabChannel = (id : number) : string => {
 
 const open = async (msg : FDC3Message, port : chrome.runtime.Port) => {
     return new Promise(async (resolve, reject) => {
-        const directoryUrl = await utils.getDirectoryUrl();
-        const result = await fetch(`${directoryUrl}/apps/${msg.data.name}`);
+        console.log("open", msg);
+        let start_url = msg.data ? msg.data.start_url : undefined;
+        const target : TargetApp = msg.data.target;
+        const name : String =  target && typeof(target) === "string" ? target : target ? (target as AppMetadata).name : undefined; 
         const source = utils.id(port);
-        if (result) {
-            try {
+        /**
+         * To DO: Determine any future handling for AppMetadata in looking up an app
+         * 
+         */
+        if (! start_url){
+            const directoryUrl = await utils.getDirectoryUrl();
+            console.log("open app", `${directoryUrl}/apps/${name}`);
+            const result = await fetch(`${directoryUrl}/apps/${name}`);
+            
+            if (result) {
                 const r = await result.json();
+                start_url = r.start_url;
+            }
+        }
+        if (start_url) {
+            try {
+             //   const r = await result.json();
                 //todo: get the manifest...
-                if (r && r.start_url){
+               // if (r && r.start_url){
                    
-                    chrome.tabs.create({url:r.start_url},tab =>{
+                    chrome.tabs.create({url:start_url},tab =>{
                         //autojoin the new app to the channel which the 'open' call is sourced from
                         if (msg.data.autojoin){
                             //get channel from current port context
@@ -208,10 +272,8 @@ const open = async (msg : FDC3Message, port : chrome.runtime.Port) => {
                         resolve({result:true, tab:tab.id});
                     });
                     
-                }
-                else {
-                    reject(utils.OpenError.AppNotFound);
-                }
+              //  }
+            //   
         
             }
             catch (err){
@@ -604,8 +666,13 @@ const raiseIntent = async (msg: FDC3Message, port : chrome.runtime.Port) : Promi
         if (msg.data.context){
             ctx = msg.data.context.type;
         }
+        /**
+         * To Do: Support additional AppMetadata searching (other than name)
+         */
+        const target : TargetApp = msg.data.target;
+        const name : String  =  target ? (typeof(target) === "string" ? target : (target as AppMetadata).name) : ""; 
         const directoryUrl = await utils.getDirectoryUrl();
-        const _r = await fetch(`${directoryUrl}/apps/search?intent=${msg.data.intent}&context=${ctx}&name=${msg.data.target ? msg.data.target : ""}`);
+        const _r = await fetch(`${directoryUrl}/apps/search?intent=${msg.data.intent}&context=${ctx}&name=${name}`);
         if (_r){ 
             let data = null;
             try {
@@ -641,19 +708,7 @@ const raiseIntent = async (msg: FDC3Message, port : chrome.runtime.Port) : Promi
                 } else if (r[0].type === "directory"){
                     let start_url = r[0].details.directoryData.start_url;
                     let pending = true;
-                    if (r[0].details.directoryData.hasActions){
-                        const directoryUrl = await utils.getDirectoryUrl();
-                        const rHeaders = new Headers();
-                        rHeaders.append('Content-Type', 'application/json');
-                        const body = {"intent":msg.data.intent,"context":msg.data.context};
-                        const templateR = await fetch(`${directoryUrl}/apps/${r[0].details.directoryData.name}/action`,{headers:rHeaders,method:"POST",body:JSON.stringify(body)});
-                        const action_url = await templateR.text();                     
-                        //if we get a valid action url back, set that as the start and don't post pending data
-                        if (action_url){
-                            start_url = action_url;
-                            pending = false;
-                        }
-                    }
+
                     
                         //let win = window.open(start_url,"_blank");
                         chrome.tabs.create({url:start_url},tab =>{
@@ -725,6 +780,163 @@ const raiseIntent = async (msg: FDC3Message, port : chrome.runtime.Port) : Promi
 };
 
 
+const raiseIntentForContext = async (msg: FDC3Message, port : chrome.runtime.Port) : Promise<any> => {
+    console.log("raiseIntentForContext", msg);
+    return new Promise(async (resolve, reject) => {
+        const r : Array<FDC3App> = [];
+
+        //handle the resolver UI closing
+        port.onMessage.addListener(async (msg : FDC3Message) => {
+            if (msg.topic === "resolver-close"){
+                resolve(null);
+            }
+        });
+
+        //decorate the message with source 
+        msg.source = utils.id(port);
+
+        //add dynamic listeners from connected tabs
+        /**
+         * rather than looking for intent listeners and mathing on intent
+         * loop through active intent listeners and match on context
+         * this returns a map of intents and apps (with matching context listeners)
+         */
+        const context = msg.data.context && msg.data.context.type ? msg.data.context.type : "";
+       
+        const intentListeners = getIntentListenersByContext(context, msg.data.target);
+        console.log("intentListeners",intentListeners);
+        if (intentListeners) {
+           // let keys = Object.keys(intentListeners);
+           intentListeners.forEach((listeners : Array<ConnectedApp>, intent : string) => {
+                //look up the details of the window and directory metadata in the "connected" store
+                listeners.forEach(listener => {
+                   // const connect : FDC3AppDetail= utils.getConnected(listener.appId);
+                    //connect.intent = intent;
+                    //decorate with the intent
+                  
+                    //de-dupe               
+                    if (!r.find(item => {
+                        return item.details.port.sender.tab.id === listener.port.sender.tab.id;})){
+                        r.push({type:"window",details:listener});
+                    }
+                });
+            });
+        }
+        
+        /**
+         * To Do: Support additional AppMetadata searching (other than name)
+         */
+        const target : TargetApp = msg.data.target;
+        const name : String  =  target ? (typeof(target) === "string" ? target : (target as AppMetadata).name) : ""; 
+        const directoryUrl = await utils.getDirectoryUrl();
+        
+        const _r = await fetch(`${directoryUrl}/apps/search?context=${context}&name=${name}`);
+        if (_r){ 
+            let data = null;
+            try {
+                data = await _r.json();
+            }
+            catch (err){
+                console.log("error parsing json", err);
+            }
+
+            if (data){
+                data.forEach((entry : DirectoryApp) => {
+                    r.push({type:"directory", details:{directoryData:entry}});
+                });
+            }
+        }   
+
+        if (r.length > 0){
+            if (r.length === 1){
+                //if there is only one result, use that
+                //if it is a window, post a message directly to it
+                //if it is a directory entry resolve the destination for the intent and launch it
+                //dedupe window and directory items
+                if (r[0].type === "window"){
+                    
+                    r[0].details.port.postMessage({topic:"intent", data:msg.data, source:msg.source});
+                    //bringing the tab to front conditional on the type of intent
+                    if (! utils.isDataIntent(msg.data.intent)){
+                        utils.bringToFront(r[0].details.port);
+                    }
+                    
+                    let id = utils.id(r[0].details.port);
+                    resolve({result:true, source:id, version:"1.0"});
+                } else if (r[0].type === "directory"){
+                    let start_url = r[0].details.directoryData.start_url;
+                    let pending = true;
+
+                    
+                        //let win = window.open(start_url,"_blank");
+                        chrome.tabs.create({url:start_url},tab =>{
+                            //set pending intent for the tab...
+                            if (pending){
+                                setPendingIntent(tab.id, msg.source, msg.data.intent, msg.data.context);
+                            }
+                            let id = utils.id(port, tab);
+                            resolve({result:true, source:id, version:"1.0", tab:tab.id});
+                        });
+                        //send the context - if the default start_url was used...
+                        //get the window/tab...
+                        // resolve({result:true});
+                }
+      
+                
+            }
+            else {
+                //show resolver UI
+                // Send a message to the active tab
+                //sort results alphabetically, with directory entries first (before window entries)
+                r.sort((a,b)=>{
+                    let aTitle = a.details.directoryData ? a.details.directoryData.title : a.details.port.sender.url;
+                    let bTitle = b.details.directoryData ? b.details.directoryData.title : b.details.port.sender.url;
+                    if (aTitle < bTitle){
+                        return -1;
+                    }
+                    if (aTitle > bTitle){
+                        return 1;
+                    }
+                    else {
+                        return 0;
+                    }
+                });
+
+                const eventId = `resolveIntent-${Date.now()}`;
+
+                //set a handler for resolving the intent (when end user selects a destination)
+                port.onMessage.addListener(async msg => {
+                    if (msg.topic === eventId){
+                        
+                        let r = await resolveIntent(msg, port);
+                        resolve(r);
+                    }
+                });
+                chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+                    var activeTab = tabs[0];
+                   
+                    chrome.tabs.sendMessage(activeTab.id, {
+                        "message": "context_resolver", 
+                        "eventId": eventId,
+                        "data":buildIntentInstanceTree(r), 
+                        "context":msg.data.context});
+                    
+                });
+                
+            }
+                    
+        }
+        else {
+            //show message indicating no handler for the intent...
+            reject("no apps found for intent");
+        }
+
+            
+        });
+    
+};
+
+
 const resolveIntent = async (msg : FDC3Message, port : chrome.runtime.Port) : Promise<any> => {
     return new Promise(async (resolve, reject) => {
         //find the app to route to
@@ -758,21 +970,7 @@ const resolveIntent = async (msg : FDC3Message, port : chrome.runtime.Port) : Pr
             let start_url = msg.selected.details.directoryData.start_url;
             let appName = msg.selected.details.directoryData.name;
             let pending = true;
-            //are there actions defined?
-            console.log("hasActions",msg.selected.details.directoryData);
-            if (msg.selected.details.directoryData.hasActions){
-                const directoryUrl = await utils.getDirectoryUrl();
-                const rHeaders = new Headers();
-                rHeaders.append('Content-Type', 'application/json');
-                const body = {"intent":msg.intent,"context":msg.context};
-                const templateR = await fetch(`${directoryUrl}/apps/${appName}/action`,{headers:rHeaders,method:"POST",body:JSON.stringify(body)});
-                const action_url = await templateR.text();
-                //if we get a valid action url back, set that as the start and don't post pending data
-                if (action_url){
-                    start_url = action_url;
-                    pending = false;
-                }
-            }
+
           
                 chrome.tabs.create({url:start_url},tab =>{
                     //set pending intent for the tab...
@@ -995,7 +1193,7 @@ const findIntent = async (msg : FDC3Message, port : chrome.runtime.Port) : Promi
                 r.apps.push({name:dirApp.name, 
                         title:dirApp.title,
                         description:dirApp.description,
-                        icons:dirApp.icons.map((icon) => {return icon.icon;})});
+                        icons:dirApp.icons.map((icon) => {return icon;})});
             });
             resolve(r);
             
@@ -1011,6 +1209,72 @@ const findIntent = async (msg : FDC3Message, port : chrome.runtime.Port) : Promi
     });
 };
 
+/**
+ * create a heirarchy of AppMetadata grouped by intents
+ */
+const buildIntentAppTree = (data : Array<FDC3App>) : Array<AppIntent> => {
+    const r : Array<AppIntent> = [];
+    console.log("buildIntentAppTree",data);
+    if (data){
+        const found : Map<string,Array<AppMetadata>> = new Map();
+        let intents : Array<IntentMetadata>= [];
+        data.forEach(item => {
+            const appMeta : AppMetadata = {name:item.details.directoryData.name, 
+                title:item.details.directoryData.title,
+                description:item.details.directoryData.description,
+                icons:item.details.directoryData.icons.map((icon) => {return icon;})};
+
+            item.details.directoryData.intents.forEach(intent => {
+                if (!found.has(intent.name)){
+                    intents.push({name:intent.name,displayName:intent.display_name});
+                    found.set(intent.name,[appMeta])
+                    
+                }
+                else {
+                    found.get(intent.name).push(appMeta);
+                }
+            });
+        });
+
+        intents.forEach(intent =>{
+            const entry : AppIntent = {intent:intent,apps:found.get(intent.name)};
+            r.push(entry);
+        });
+    }
+    return r;
+}
+
+
+/**
+ * create a heirarchy of App Instances grouped by intents
+ */
+const buildIntentInstanceTree = (data : Array<FDC3App>) : Array<IntentInstance> => {
+    const r : Array<IntentInstance> = [];
+    console.log("buildIntentInstanceTree",data);
+    if (data){
+        const found : Map<string,Array<FDC3App>> = new Map();
+        let intents : Array<IntentMetadata>= [];
+        data.forEach(item => {
+
+            item.details.directoryData.intents.forEach(intent => {
+                if (!found.has(intent.name)){
+                    intents.push({name:intent.name,displayName:intent.display_name});
+                    found.set(intent.name,[item])
+                    
+                }
+                else {
+                    found.get(intent.name).push(item);
+                }
+            });
+        });
+
+        intents.forEach(intent =>{
+            const entry : IntentInstance = {intent:intent,apps:found.get(intent.name)};
+            r.push(entry);
+        });
+    }
+    return r;
+}
 
 // returns, for example:
 // [{
@@ -1032,34 +1296,11 @@ const findIntentsByContext = async (msg : FDC3Message, port : chrome.runtime.Por
             const url = `${directoryUrl}/apps/search?context=${context}`;   
             const _r = await fetch(url);
             const d : Array<DirectoryApp> = await _r.json();
-            let r : Array<AppIntent> = [];
-            if (d){
-                const found : Map<string,Array<AppMetadata>> = new Map();
-                let intents : Array<IntentMetadata>= [];
-                d.forEach(item => {
-                    const appMeta : AppMetadata = {name:item.name, 
-                        title:item.title,
-                        description:item.description,
-                        icons:item.icons.map((icon) => {return icon.icon;})};
-
-                    item.intents.forEach(intent => {
-                        if (!found.has(intent.name)){
-                            intents.push({name:intent.name,displayName:intent.display_name});
-                            found.set(intent.name,[appMeta])
-                            
-                        }
-                        else {
-                            found.get(intent.name).push(appMeta);
-                        }
-                    });
-                });
-
-                intents.forEach(intent =>{
-                    const entry : AppIntent = {intent:intent,apps:found.get(intent.name)};
-                    r.push(entry);
-                });
-            }
-            resolve(r);
+            const apps : Array<FDC3App> = d.map(app => {
+                return ({  type:"directory", 
+                            details:{directoryData:app}
+                        } as FDC3App);});
+            resolve(buildIntentAppTree(apps));
         }
         else {
             reject("no context provided");
@@ -1103,5 +1344,6 @@ export default {
     applyPendingChannel,
     getCurrentChannel,
     leaveCurrentChannel,
-    getAppInstance
+    getAppInstance,
+    raiseIntentForContext
 };

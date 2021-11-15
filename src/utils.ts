@@ -75,9 +75,17 @@ const setConnected = (item : ConnectedApp) : boolean => {
     return true;
 };
 
-//if id is passed, return that item, if no or false args, return all connected items
+//if id is passed, return that item, to do:  change signature to array and  return all connected items if no id is passed in
 const getConnected = (id : string) : ConnectedApp => {
     return connected.get(id);  
+};
+
+const getAllConnected = () : Array<ConnectedApp> => {
+    const result : Array<ConnectedApp> = [];
+    connected.forEach((item : ConnectedApp, id : string) => {
+        result.push(item);
+    });
+    return result;
 };
 
 const dropConnected = (id :string)=> {
@@ -164,6 +172,7 @@ export default{
     setConnected,
     getConnected,
     dropConnected,
+    getAllConnected,
     bringToFront,
     OpenError,
     ResolveError,

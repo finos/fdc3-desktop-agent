@@ -1,4 +1,5 @@
 import {Context} from './fdc3/Context';
+import { TargetApp } from './fdc3/Types';
 
 /**
  * Custom DOM event used by the FDC3 API
@@ -35,8 +36,8 @@ export interface FDC3EventDetail {
     data ? : any;
     name? : string;
     context? : Context;
-    target? : string;
     source? : string;
+    target? : TargetApp;
 }
 
 

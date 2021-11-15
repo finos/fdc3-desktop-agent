@@ -19,10 +19,12 @@ import {IntentResolution} from './IntentResolution';
 import {Channel} from './Channel';
 import {ContextHandler} from './ContextHandler';
 import {AppInstance} from './AppInstance';
+import {ImplementationMetadata } from './ImplementationMetadata';
+import {TargetApp} from './Types';
 
 export interface DesktopAgent {
     /**
-     * Launches an app by name.
+     * Launches an app by name or by metadata
      * 
      * If a Context object is passed in, this object will be provided to the opened application via a contextListener.
      * The Context argument is functionally equivalent to opening the target app with no context and broadcasting the context directly to it.
@@ -34,9 +36,17 @@ export interface DesktopAgent {
      *     agent.open('myApp');
      *     //with context
      *     agent.open('myApp', context);
+     *     //with metadata
+     *     const target: TargetApp = {
+     *        name: 'MyApp',
+     *        version: '2.5'
+     *     }
+     *
+     *     await fdc3.open(target)
+     *     
      * ```
      */
-    open(name: string, context?: Context): Promise<void>;
+    open(target: TargetApp, context?: Context): Promise<void>;
   
     /**
      * Find out more information about a particular intent by passing its name, and optionally its context.
@@ -98,6 +108,28 @@ export interface DesktopAgent {
      */
     findIntentsByContext(context: Context): Promise<Array<AppIntent>>;
   
+ /**
+   * Finds and raises an intent against apps registered with the desktop agent based purely on the type of the context data.
+   *
+   * The desktop agent SHOULD first resolve to a specific intent based on the provided context if more than one intent is available for the specified context. This MAY be achieved by displaying a resolver UI. It SHOULD then resolve to a specific app to handle the selected intent and specified context.
+   * Alternatively, the specific app to target can also be provided, in which case the resolver should only offer intents supported by the specified application.
+   *
+   * Using `raiseIntentForContext` is similar to calling `findIntentsByContext`, and then raising an intent against one of the returned apps, except in this case the desktop agent has the opportunity to provide the user with a richer selection interface where they can choose both the intent and target app.
+   *
+   * Returns an `IntentResolution` object with a handle to the app that responded to the selected intent.
+   *
+   * If a target app for the intent cannot be found with the criteria provided, an `Error` with a string from the `ResolveError` enumeration is returned.
+   *
+   * ```javascript
+   * // Resolve against all intents registered for the specified context
+   * await fdc3.raiseIntentForContext(context);
+   * // Resolve against all intents registered by a specific target app for the specified context
+   * await fdc3.raiseIntentForContext(context, targetAppMetadata);
+   * ```
+   */
+    raiseIntentForContext(context: Context, app?: TargetApp): Promise<IntentResolution>;
+
+
     /**
      * Publishes context to other apps on the desktop.
      * ```javascript
@@ -115,7 +147,7 @@ export interface DesktopAgent {
      * agent.raiseIntent("StartChat", newContext, intentR.source);
      * ```
      */
-    raiseIntent(intent: string, context: Context, target?: string): Promise<IntentResolution>;
+    raiseIntent(intent: string, context: Context, target?: TargetApp): Promise<IntentResolution>;
   
     /**
      * Adds a listener for incoming Intents from the Agent.
@@ -156,4 +188,11 @@ export interface DesktopAgent {
     getOrCreateChannel(channelId: string): Promise<Channel>;
 
     getAppInstance(instanceId : string ) : Promise<AppInstance>;
+
+     /**
+     * Retrieves information about the FDC3 Desktop Agent implementation, such as
+     * the implemented version of the FDC3 specification and the name of the implementation
+     * provider.
+     */
+      getInfo(): ImplementationMetadata;
   }

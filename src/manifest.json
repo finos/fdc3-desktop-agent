@@ -1,6 +1,6 @@
 {
     "name": "FDC3 Agent",
-    "version": "0.1",
+    "version": "0.1.2",
     "description": "FDC3 Desktop Agent implementation.",
     "manifest_version": 2,
     "options_page" : "options.html",
@@ -11,7 +11,9 @@
         "persistent": false
     },
     "web_accessible_resources":[
-        "api.js"
+        "api.js",
+        "new.png",
+        "new-white.png"
     ],     
     "browser_action": {
         "default_icon": "icon.png",
