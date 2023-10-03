@@ -2,6 +2,8 @@
 
 This project is archived, which means that it's in read-only state; you can download and use this code, but please be aware that it may be buggy and may also contain security vulnerabilities. If you're interested to restore development activities on this project, please email help@finos.org
 
+A continuation of the FDC3 Desktop Agent can be found at [FDC3 Sail](https://github.com/finos/FDC3-Sail).
+
 # FDC3 desktop-agent
 The FDC3 Desktop Agent is an open source implementation of FDC3 as a Chrome Extension. Its purpose is to provide a quick and easy way for app developers to get started with the FDC3 APIs.  The extension makes FDC3 directly available in Chrome and provides a default App Directory with a number of demo apps available.
  
